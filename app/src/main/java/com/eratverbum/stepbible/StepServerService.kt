@@ -13,7 +13,6 @@ import java.util.zip.ZipFile
 
 class StepServerService : Service() {
 
-    private var serverProcess: Process? = null
     private var serverThread: Thread? = null
     private var serverPort = 8989
 
@@ -45,7 +44,6 @@ class StepServerService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        serverProcess?.destroy()
         serverThread?.interrupt()
         super.onDestroy()
     }
@@ -59,43 +57,27 @@ class StepServerService : Service() {
             extractAssets(appDir)
         }
 
-        val javaBin = File(jreDir, "bin/java")
-        if (!javaBin.canExecute()) {
-            javaBin.setExecutable(true)
-        }
-        setAllExecutable(File(jreDir, "bin"))
-
         val classpath = buildClasspath(stepDir)
         val webappDir = File(stepDir, "step-web")
 
-        val pb = ProcessBuilder(
-            javaBin.absolutePath,
-            "-cp", classpath,
-            "-Dstep.war.path=${webappDir.absolutePath}",
-            "-Dstep.war.port=$serverPort",
-            "-Dstep.war.context=",
-            "-Djava.io.tmpdir=${File(appDir, "tmp").also { it.mkdirs() }.absolutePath}",
-            "com.tyndalehouse.step.server.STEPTomcatServer",
-            "backgroundLaunch"
-        )
-        pb.environment()["JAVA_HOME"] = jreDir.absolutePath
-        pb.environment()["LD_LIBRARY_PATH"] = buildLdLibraryPath(jreDir)
-        pb.directory(stepDir)
-        pb.redirectErrorStream(true)
-
-        Log.i(TAG, "Starting server: ${pb.command().joinToString(" ")}")
-
-        serverProcess = pb.start()
         ServerState.port = serverPort
         ServerState.isRunning = true
 
-        serverProcess?.inputStream?.bufferedReader()?.use { reader ->
-            reader.lines().forEach { line ->
-                Log.d(TAG, "[JRE] $line")
-            }
-        }
+        Log.i(TAG, "Starting JVM...")
+        val nativeLibDir = applicationInfo.nativeLibraryDir
+        val ret = JVMStub.startServer(
+            jreDir = jreDir.absolutePath,
+            classPath = classpath,
+            warPath = webappDir.absolutePath,
+            port = serverPort,
+            nativeLibDir = nativeLibDir
+        )
 
-        serverProcess?.waitFor()
+        if (ret != 0) {
+            Log.e(TAG, "JVM exited with error: $ret")
+        } else {
+            Log.i(TAG, "JVM exited normally")
+        }
         ServerState.isRunning = false
     }
 
@@ -118,15 +100,6 @@ class StepServerService : Service() {
         }
 
         return jars.joinToString(":")
-    }
-
-    private fun buildLdLibraryPath(jreDir: File): String {
-        val paths = mutableListOf<String>()
-        val libDir = File(jreDir, "lib")
-        if (libDir.exists()) paths.add(libDir.absolutePath)
-        val serverDir = File(libDir, "server")
-        if (serverDir.exists()) paths.add(serverDir.absolutePath)
-        return paths.joinToString(":")
     }
 
     private fun detectJreAbi(): String {
@@ -164,9 +137,6 @@ class StepServerService : Service() {
                         zip.getInputStream(entry).use { input ->
                             dest.outputStream().use { output -> input.copyTo(output) }
                         }
-                        if (relPath.startsWith("bin/") || relPath.endsWith(".so")) {
-                            dest.setExecutable(true)
-                        }
                     }
                     name.startsWith(prefixStep) && !entry.isDirectory -> {
                         val relPath = name.removePrefix(prefixStep)
@@ -183,13 +153,6 @@ class StepServerService : Service() {
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed", e)
             throw e
-        }
-    }
-
-    private fun setAllExecutable(dir: File) {
-        dir.listFiles()?.forEach { f ->
-            if (f.isFile) f.setExecutable(true)
-            else if (f.isDirectory) setAllExecutable(f)
         }
     }
 

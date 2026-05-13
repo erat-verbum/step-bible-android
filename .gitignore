@@ -12,6 +12,7 @@
 .gradle/
 .idea/
 app/src/main/assets/
+app/src/main/jniLibs/
 build/
 build-cache/
 captures/

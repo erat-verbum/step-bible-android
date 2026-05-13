@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.eratverbum.stepbible"
     compileSdk = 34
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.eratverbum.stepbible"
@@ -13,6 +14,14 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        ndk {
+            abiFilters += listOf("x86_64")
+        }
+        externalNativeBuild {
+            cmake {
+                cppFlags += "-fPIC"
+            }
+        }
     }
 
     buildTypes {
@@ -33,6 +42,13 @@ android {
 
     aaptOptions {
         ignoreAssetsPattern = "!.deb:!tmp:!lost+found"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 

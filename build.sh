@@ -8,6 +8,11 @@ cd "$SCRIPT_DIR"
 : "${JRE_VERSION:="17.0.19"}"
 : "${GRADLE_VERSION:="9.5.1"}"
 : "${TERMUX_MIRROR:="https://termux.librehat.com/apt/termux-main/pool/main/o/openjdk-17"}"
+declare -A JRE_URLS
+# Build JRE .deb URLs for each arch
+for arch in aarch64 arm i686 x86_64; do
+    JRE_URLS[$arch]="${TERMUX_MIRROR}/openjdk-17_${JRE_VERSION}_${arch}.deb"
+done
 
 CACHE_DIR="$SCRIPT_DIR/build-cache"
 DOWNLOADS_DIR="$CACHE_DIR/downloads"
@@ -120,13 +125,16 @@ setup_android_sdk() {
     fi
     unzip -qo "$DOWNLOADS_DIR/cmdline-tools.zip" -d "$sdk_dir/" 2>/dev/null
 
-    local sdkmanager="$sdk_dir/cmdline-tools/bin/sdkmanager"
-    if [[ ! -f "$sdkmanager" ]]; then
+    # Handle cmdline-tools placement (varies by version)
+    if [[ ! -f "$sdk_dir/cmdline-tools/bin/sdkmanager" ]]; then
         mkdir -p "$sdk_dir/cmdline-tools/latest"
         mv "$sdk_dir/cmdline-tools/bin" "$sdk_dir/cmdline-tools/latest/" 2>/dev/null || true
         mv "$sdk_dir/cmdline-tools/lib" "$sdk_dir/cmdline-tools/latest/" 2>/dev/null || true
-        sdkmanager="$sdk_dir/cmdline-tools/latest/bin/sdkmanager"
     fi
+
+    local sdkmanager
+    sdkmanager=$(find "$sdk_dir/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    [[ -z "$sdkmanager" ]] && die "sdkmanager not found after extraction"
 
     chmod +x "$sdkmanager"
     yes | "$sdkmanager" --sdk_root="$sdk_dir" \
@@ -162,8 +170,7 @@ phase_download() {
     download "$STEP_DEB_URL" "$STEP_DEB"
 
     for arch in "${JRE_ARCHS[@]}"; do
-        local url="${TERMUX_MIRROR}/openjdk-17_${JRE_VERSION}_${arch}.deb"
-        download "$url" "$DOWNLOADS_DIR/openjdk-17_${JRE_VERSION}_${arch}.deb"
+        download "${JRE_URLS[$arch]}" "$DOWNLOADS_DIR/openjdk-17_${JRE_VERSION}_${arch}.deb"
     done
 
     echo "STEP_DEB=$STEP_DEB" > "$SCRIPT_DIR/.build-vars"
@@ -195,6 +202,27 @@ phase_extract() {
     rm -rf "$ASSETS_DIR/step/jre" "$ASSETS_DIR/step/.install4j" \
            "$ASSETS_DIR/step/logs" "$ASSETS_DIR/step/runStep.sh" \
            "$ASSETS_DIR/step/post-install.sh" 2>/dev/null || true
+
+    # --- Build libandroid-shmem.so for all archs ---
+    info "Building libandroid-shmem.so for all architectures..."
+    local ndk="$SCRIPT_DIR/build-cache/android-sdk/ndk/27.0.12077973"
+    for arch in "${JRE_ARCHS[@]}"; do
+        local abi_var="JRE_ABI_MAP_${arch}"
+        local abi="${!abi_var}"
+        local ndk_triple
+        case "$arch" in
+            aarch64) ndk_triple="aarch64-linux-android24" ;;
+            arm)     ndk_triple="armv7a-linux-androideabi24" ;;
+            i686)    ndk_triple="i686-linux-android24" ;;
+            x86_64)  ndk_triple="x86_64-linux-android24" ;;
+        esac
+        local clang="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/${ndk_triple}-clang"
+        if [[ -f "$clang" ]]; then
+            "$clang" -shared -fPIC -o "$ASSETS_DIR/jre/$abi/lib/libandroid-shmem.so" \
+                "$SCRIPT_DIR/app/src/main/jni/android_shmem.c" 2>/dev/null || \
+                info "Warning: failed to build android-shmem for $arch (using stub)"
+        fi
+    done
 
     # --- Extract JREs for all architectures ---
     info "Copying JREs for all architectures..."
@@ -275,6 +303,124 @@ phase_setup() {
     info "Setup complete"
 }
 
+phase_system_image() {
+    setup_android_sdk
+    export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
+    local sdkmanager
+    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    [[ -z "$sdkmanager" ]] && die "sdkmanager not found"
+    local system_image="system-images;android-34;google_apis;x86_64"
+    info "Downloading system image (1.2GB)..."
+    yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" "$system_image" 2>&1 | grep -v "^\[=\|Warning:" || true
+    info "System image ready"
+}
+
+phase_run() {
+    info "=== Phase: Run ==="
+    local apk
+    apk=$(find "$SCRIPT_DIR/app/build/outputs/apk/debug" -name '*.apk' | head -1)
+    [[ -f "$apk" ]] || die "No APK found. Run './build.sh build' first."
+
+    export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
+    export ANDROID_SDK_ROOT="$ANDROID_HOME"
+    export ANDROID_AVD_HOME="$SCRIPT_DIR/build-cache/avd"
+    export ANDROID_SDK_HOME="$SCRIPT_DIR/build-cache"
+
+    local emulator="$ANDROID_HOME/emulator/emulator"
+    local adb="$ANDROID_HOME/platform-tools/adb"
+    local avdmanager
+    avdmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "avdmanager" -type f 2>/dev/null | head -1)
+    local sdkmanager
+    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    local avd_name="step_test"
+    local system_image="system-images;android-34;google_apis;x86_64"
+
+    [[ -f "$emulator" ]] || die "Emulator not found. Run './build.sh setup' first."
+    [[ -f "$adb" ]] || die "ADB not found. Run './build.sh setup' first."
+    [[ -f "$avdmanager" ]] || die "avdmanager not found. Run './build.sh setup' first."
+
+    # Ensure system image
+    if ! "$sdkmanager" --sdk_root="$ANDROID_HOME" --list 2>/dev/null | grep -q "$system_image"; then
+        info "Downloading system image (this is large)..."
+        yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" "$system_image" | grep -v "^\[=" || true
+    fi
+
+    # Create AVD if missing (always inside repo, never ~/.android)
+    local existing_avd
+    existing_avd=$("$avdmanager" list avd 2>/dev/null | grep -oP "Name: \K$avd_name" | head -1)
+    if [[ -z "$existing_avd" ]]; then
+        info "Creating AVD '$avd_name'..."
+        rm -rf "$ANDROID_AVD_HOME" 2>/dev/null
+        mkdir -p "$ANDROID_AVD_HOME"
+        # avdmanager stores relative paths based on its SDK root detection.
+        # Force the correct absolute path in the config.
+        echo no | "$avdmanager" create avd -n "$avd_name" -k "$system_image" -d pixel_6 --force 2>&1 | \
+            grep -v "^Warning:" || die "AVD creation failed"
+        local avd_config="$ANDROID_AVD_HOME/${avd_name}.avd/config.ini"
+        if [[ -f "$avd_config" ]]; then
+            sed -i "s|^image\.sysdir\.1=.*|image.sysdir.1=system-images/android-34/google_apis/x86_64/|" "$avd_config"
+        fi
+    fi
+
+    # Check if already running
+    local already_running=false
+    if "$adb" get-state 2>/dev/null; then
+        already_running=true
+    fi
+
+    if ! $already_running; then
+        info "Starting emulator (this takes ~30s)..."
+        "$emulator" -avd "$avd_name" -no-audio -no-window -netdelay none -netspeed full &
+        EMULATOR_PID=$!
+
+        info "Waiting for device..."
+        "$adb" wait-for-device 2>/dev/null || true
+        # Additional wait for boot completion
+        local boot_completed=""
+        for i in $(seq 1 60); do
+            boot_completed=$("$adb" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r\n')
+            if [[ "$boot_completed" == "1" ]]; then
+                info "Device booted"
+                break
+            fi
+            sleep 2
+        done
+        if [[ "$boot_completed" != "1" ]]; then
+            info "Device may not have fully booted, continuing anyway..."
+        fi
+    else
+        info "Emulator already running"
+    fi
+
+    # Install APK
+    info "Installing APK..."
+    "$adb" install -r "$apk" 2>&1 || die "Install failed"
+    info "APK installed"
+
+    # Launch
+    info "Launching STEP Bible..."
+    "$adb" shell am start -n "com.eratverbum.stepbible/.MainActivity" 2>/dev/null
+
+    info "Running. Use './build.sh stop' to kill the emulator."
+    info "Or run: $adb logcat | grep StepServer"
+}
+
+phase_stop() {
+    info "=== Phase: Stop ==="
+    export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
+    local adb="$ANDROID_HOME/platform-tools/adb"
+    "$adb" emu kill 2>/dev/null || true
+    "$adb" kill-server 2>/dev/null || true
+    info "Emulator stopped"
+}
+
+phase_log() {
+    info "=== Phase: Logcat ==="
+    export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
+    local adb="$ANDROID_HOME/platform-tools/adb"
+    "$adb" logcat -v time | grep -E "StepServer|WebView|SystemWebChromeClient"
+}
+
 phase_all() {
     phase_setup
     phase_download
@@ -289,7 +435,8 @@ usage() {
     echo "  download    Download STEP .deb and JRE .debs (all 4 archs)"
     echo "  extract     Extract debs and prepare assets"
     echo "  build       Build APK (runs extract first if needed)"
-    echo "  setup       Install JDK 21, Android SDK, Gradle"
+echo "  setup       Install JDK 21, Android SDK, Gradle"
+    echo "  system-image Download Android 34 x86_64 system image for emulator"
     echo "  clean       Remove all downloaded and extracted files"
     echo "  all         Run all phases (default)"
     exit 0
@@ -299,7 +446,11 @@ case "${1:-all}" in
     download)  phase_download ;;
     extract)   phase_extract ;;
     build)     phase_build ;;
+    run)       phase_run ;;
+    stop)      phase_stop ;;
+    log)       phase_log ;;
     setup)     phase_setup ;;
+    system-image) phase_system_image ;;
     clean)     clean ;;
     all)       phase_all ;;
     *)         usage ;;
