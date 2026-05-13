@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import java.io.File
-import java.io.FileOutputStream
 import java.util.zip.ZipFile
 
 class StepServerService : Service() {
@@ -57,18 +56,16 @@ class StepServerService : Service() {
         val stepDir = File(appDir, "step")
 
         if (!jreDir.exists() || !stepDir.exists()) {
-            extractAssetsFromApk(jreDir, stepDir)
+            extractAssets(appDir)
         }
 
         val javaBin = File(jreDir, "bin/java")
         if (!javaBin.canExecute()) {
             javaBin.setExecutable(true)
         }
-
         setAllExecutable(File(jreDir, "bin"))
 
         val classpath = buildClasspath(stepDir)
-
         val webappDir = File(stepDir, "step-web")
 
         val pb = ProcessBuilder(
@@ -105,8 +102,8 @@ class StepServerService : Service() {
     private fun buildClasspath(stepDir: File): String {
         val jars = mutableListOf<String>()
 
-        val serverJar = File(stepDir, "step-server-26.5.2.jar")
-        if (serverJar.exists()) jars.add(serverJar.absolutePath)
+        val serverJars = stepDir.listFiles { f -> f.name.startsWith("step-server-") && f.name.endsWith(".jar") }
+        serverJars?.sortedBy { it.name }?.forEach { jars.add(it.absolutePath) }
 
         File(stepDir, "lib").takeIf { it.exists() }?.let { libDir ->
             libDir.listFiles { f -> f.name.endsWith(".jar") }
@@ -132,43 +129,57 @@ class StepServerService : Service() {
         return paths.joinToString(":")
     }
 
-    private fun extractAssetsFromApk(jreDir: File, stepDir: File) {
+    private fun detectJreAbi(): String {
+        val abi = Build.SUPPORTED_ABIS.firstOrNull() ?: "arm64-v8a"
+        return when {
+            abi.startsWith("arm64") -> "arm64-v8a"
+            abi.startsWith("armeabi") -> "armeabi-v7a"
+            abi.startsWith("x86_64") -> "x86_64"
+            abi.startsWith("x86") -> "x86"
+            else -> "arm64-v8a"
+        }
+    }
+
+    private fun extractAssets(appDir: File) {
         Log.i(TAG, "Extracting assets (first launch)...")
+        val stepDir = File(appDir, "step")
+        val jreDir = File(appDir, "jre")
+        val jreAbi = detectJreAbi()
+
         try {
             val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
             val zip = ZipFile(apkPath)
             val entries = zip.entries()
-            val prefixJre = "assets/jre/"
+            val prefixJre = "assets/jre/$jreAbi/"
             val prefixStep = "assets/step/"
 
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
                 val name = entry.name
-                if (name.startsWith(prefixJre) && !entry.isDirectory) {
-                    val relPath = name.removePrefix(prefixJre)
-                    val dest = File(jreDir, relPath)
-                    dest.parentFile?.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        dest.outputStream().use { output ->
-                            input.copyTo(output)
+                when {
+                    name.startsWith(prefixJre) && !entry.isDirectory -> {
+                        val relPath = name.removePrefix(prefixJre)
+                        val dest = File(jreDir, relPath)
+                        dest.parentFile?.mkdirs()
+                        zip.getInputStream(entry).use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        if (relPath.startsWith("bin/") || relPath.endsWith(".so")) {
+                            dest.setExecutable(true)
                         }
                     }
-                    if (relPath.startsWith("bin/") || relPath.endsWith(".so")) {
-                        dest.setExecutable(true)
-                    }
-                } else if (name.startsWith(prefixStep) && !entry.isDirectory) {
-                    val relPath = name.removePrefix(prefixStep)
-                    val dest = File(stepDir, relPath)
-                    dest.parentFile?.mkdirs()
-                    zip.getInputStream(entry).use { input ->
-                        dest.outputStream().use { output ->
-                            input.copyTo(output)
+                    name.startsWith(prefixStep) && !entry.isDirectory -> {
+                        val relPath = name.removePrefix(prefixStep)
+                        val dest = File(stepDir, relPath)
+                        dest.parentFile?.mkdirs()
+                        zip.getInputStream(entry).use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
                         }
                     }
                 }
             }
             zip.close()
-            Log.i(TAG, "Extraction complete")
+            Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed", e)
             throw e
