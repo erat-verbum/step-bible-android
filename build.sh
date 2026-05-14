@@ -70,22 +70,23 @@ extract_deb() {
     mkdir -p "$target"
     local tmpDir
     tmpDir=$(mktemp -d)
-    cd "$tmpDir"
-    ar x "$deb"
-    if [[ -f data.tar.xz ]]; then
-        tar xf data.tar.xz
-    elif [[ -f data.tar.bz2 ]]; then
-        tar xf data.tar.bz2
-    elif [[ -f data.tar.gz ]]; then
-        tar xf data.tar.gz
-    elif [[ -f data.tar.zst ]]; then
-        tar --use-compress-program=zstd -xf data.tar.zst 2>/dev/null || zstd -dc data.tar.zst | tar xf -
-    else
-        ls -la "$tmpDir"
-        die "Unknown data archive format in $deb"
-    fi
-    cp -a ./* "$target/" 2>/dev/null || true
-    cd "$SCRIPT_DIR"
+    (
+        cd "$tmpDir"
+        ar x "$deb"
+        if [[ -f data.tar.xz ]]; then
+            tar xf data.tar.xz
+        elif [[ -f data.tar.bz2 ]]; then
+            tar xf data.tar.bz2
+        elif [[ -f data.tar.gz ]]; then
+            tar xf data.tar.gz
+        elif [[ -f data.tar.zst ]]; then
+            tar --use-compress-program=zstd -xf data.tar.zst 2>/dev/null || zstd -dc data.tar.zst | tar xf -
+        else
+            ls -la "$tmpDir"
+            die "Unknown data archive format in $deb"
+        fi
+        cp -a ./* "$target/" 2>/dev/null || true
+    )
     rm -rf "$tmpDir"
 }
 
@@ -139,7 +140,8 @@ setup_android_sdk() {
 
     chmod +x "$sdkmanager"
     yes | "$sdkmanager" --sdk_root="$sdk_dir" \
-        "platforms;android-34" "build-tools;34.0.0" "platform-tools" | grep -v "^\[=" || true
+        "platforms;android-34" "build-tools;34.0.0" "platform-tools" \
+        "ndk;27.0.12077973" | grep -v "^\[=" || true
 
     echo "sdk.dir=$sdk_dir" > "$SCRIPT_DIR/local.properties"
     info "Android SDK ready at $sdk_dir"
@@ -208,16 +210,21 @@ phase_extract() {
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
     if [[ -n "$jdk_home" ]]; then
-        local boot_src="$SCRIPT_DIR/step-bootstrap/src/StepServerLauncher.java"
+        local boot_src="$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java"
         local boot_dir="$SCRIPT_DIR/build-cache/step-bootstrap"
         rm -rf "$boot_dir" && mkdir -p "$boot_dir"
         local cp
         cp=$(find "$ASSETS_DIR/step" -maxdepth 3 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
-        "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" "$boot_src" 2>&1 && \
-        cd "$boot_dir" && "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" com/ && \
-        cd "$SCRIPT_DIR" && rm -rf "$boot_dir" && \
-        info "StepServerLauncher compiled" || \
-        info "Warning: StepServerLauncher compilation failed (server will use fallback)"
+        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" "$boot_src" 2>&1; then
+            if "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null; then
+                info "StepServerLauncher compiled"
+            else
+                die "Failed to package bootstrap JAR"
+            fi
+        else
+            die "Failed to compile StepServerLauncher (STEP server cannot start)"
+        fi
+        rm -rf "$boot_dir"
     fi
 
     # --- Extract JREs for all architectures (PojavLauncher) ---

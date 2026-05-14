@@ -8,11 +8,13 @@ import java.io.FileOutputStream;
 
 public class StepServerLauncher {
     public static void main(String[] args) {
+        String home = System.getProperty("user.home",
+            "/data/data/com.eratverbum.stepbible/files");
         try {
             PrintStream logOut = new PrintStream(
-                new FileOutputStream("/data/data/com.eratverbum.stepbible/files/step_stdout.log", false), true);
+                new FileOutputStream(home + "/step_stdout.log", false), true);
             PrintStream logErr = new PrintStream(
-                new FileOutputStream("/data/data/com.eratverbum.stepbible/files/step_stderr.log", false), true);
+                new FileOutputStream(home + "/step_stderr.log", false), true);
             System.setOut(logOut);
             System.setErr(logErr);
 
@@ -23,7 +25,6 @@ public class StepServerLauncher {
 
             STEPTomcatServer server = new STEPTomcatServer(true);
 
-            // Pre-set ResourceBundle fields to skip initLanguages failure
             java.util.ResourceBundle emptyBundle = new java.util.PropertyResourceBundle(
                 new java.io.StringReader(""));
             Field[] fields = STEPTomcatServer.class.getDeclaredFields();
@@ -47,7 +48,6 @@ public class StepServerLauncher {
             }
 
             if (!started) {
-                // Manually create and start Tomcat as a fallback
                 System.err.println("Starting Tomcat directly as fallback...");
                 startTomcatDirectly();
             }
@@ -56,8 +56,7 @@ public class StepServerLauncher {
 
         } catch (Exception e) {
             try {
-                FileOutputStream fos = new FileOutputStream(
-                    "/data/data/com.eratverbum.stepbible/files/step_crash.log");
+                FileOutputStream fos = new FileOutputStream(home + "/step_crash.log");
                 PrintStream ps = new PrintStream(fos, true);
                 e.printStackTrace(ps);
                 ps.close();

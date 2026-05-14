@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
 
     private data class TabInfo(
         val webView: WebView,
-        val tabView: View?,
+        val tabView: View,
         val title: String
     )
 
@@ -201,7 +201,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTabBarSelection() {
         for (i in tabs.indices) {
-            tabs[i].tabView?.alpha = if (i == currentIndex) 1.0f else 0.6f
+            tabs[i].tabView.alpha = if (i == currentIndex) 1.0f else 0.6f
         }
     }
 
@@ -210,7 +210,7 @@ class MainActivity : AppCompatActivity() {
         val title = try {
             Uri.parse(url).host?.replace("www.", "") ?: url
         } catch (_: Exception) { url }
-        tab.tabView?.findViewById<TextView>(R.id.tab_title)?.text = title
+        tab.tabView.findViewById<TextView>(R.id.tab_title).text = title
     }
 
     override fun onBackPressed() {

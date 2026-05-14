@@ -14,7 +14,7 @@ import java.util.zip.ZipFile
 class StepServerService : Service() {
 
     private var serverThread: Thread? = null
-    private var serverPort = 8989
+    private val serverPort = 8989
 
     override fun onCreate() {
         super.onCreate()
@@ -24,10 +24,6 @@ class StepServerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notification = buildNotification()
         startForeground(1, notification)
-
-        intent?.let {
-            serverPort = it.getIntExtra("PORT", 8989)
-        }
 
         serverThread = Thread {
             try {
@@ -61,7 +57,6 @@ class StepServerService : Service() {
         val webappDir = File(stepDir, "step-web")
 
         ServerState.port = serverPort
-        ServerState.isRunning = true
 
         Log.i(TAG, "Starting JVM...")
         val ret = JVMStub.startServer(
@@ -76,7 +71,6 @@ class StepServerService : Service() {
         } else {
             Log.i(TAG, "JVM exited normally")
         }
-        ServerState.isRunning = false
     }
 
     private fun buildClasspath(stepDir: File): String {
@@ -172,6 +166,5 @@ class StepServerService : Service() {
 }
 
 object ServerState {
-    var isRunning = false
     var port = 8989
 }

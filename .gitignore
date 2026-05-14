@@ -18,4 +18,7 @@ build/
 build-cache/
 captures/
 externalNativeBuild/
+gradlew
+gradlew.bat
+gradle/wrapper/gradle-wrapper.jar
 local.properties
