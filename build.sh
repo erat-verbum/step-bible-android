@@ -16,6 +16,8 @@ JRE_URLS[i686]="${POJAV_JRE_BASE}/jre17-x86-20220225-release.tar.xz"
 JRE_URLS[x86_64]="${POJAV_JRE_BASE}/jre17-x86_64-20210825-release.tar.xz"
 
 CACHE_DIR="$SCRIPT_DIR/build-cache"
+GRADLE_USER_HOME="$CACHE_DIR/gradle-home"
+export GRADLE_USER_HOME
 DOWNLOADS_DIR="$CACHE_DIR/downloads"
 STEP_EXTRACT_DIR="$CACHE_DIR/step-extracted"
 JRE_EXTRACT_DIR="$CACHE_DIR/jre-extracted"
