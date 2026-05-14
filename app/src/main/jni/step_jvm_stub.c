@@ -72,7 +72,7 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
     char opt_tmpdir[1024];
     snprintf(opt_tmpdir, sizeof(opt_tmpdir), "-Djava.io.tmpdir=%s/tmp", c_jre_dir);
 
-    JavaVMOption options[8] = {
+    JavaVMOption options[13] = {
         { opt_classpath, NULL },
         { opt_war_path, NULL },
         { opt_port, NULL },
@@ -80,12 +80,17 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
         { "-Dstep.jetty=true", NULL },
         { "-Djava.locale.providers=COMPAT,SPI", NULL },
         { opt_tmpdir, NULL },
+        { "-Duser.home=/data/data/com.eratverbum.stepbible/files", NULL },
         { "-Djava.security.manager=allow", NULL },
+        { "--add-opens=java.base/java.lang=ALL-UNNAMED", NULL },
+        { "--add-opens=java.base/java.io=ALL-UNNAMED", NULL },
+        { "--add-opens=java.base/java.util=ALL-UNNAMED", NULL },
+        { "--add-opens=java.base/sun.net.www.protocol.jar=ALL-UNNAMED", NULL },
     };
 
     JavaVMInitArgs vm_args;
     vm_args.version = 0x00010008;
-    vm_args.nOptions = 8;
+    vm_args.nOptions = 13;
     vm_args.options = options;
     vm_args.ignoreUnrecognized = JNI_TRUE;
 
