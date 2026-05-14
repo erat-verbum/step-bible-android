@@ -10,6 +10,7 @@
 .extracted
 .gradle
 .gradle/
+.kotlin/
 .idea/
 app/src/main/assets/
 app/src/main/jniLibs/
