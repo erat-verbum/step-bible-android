@@ -7,12 +7,13 @@ cd "$SCRIPT_DIR"
 : "${STEP_DEB_URL:=""}"
 : "${JRE_VERSION:="17.0.19"}"
 : "${GRADLE_VERSION:="9.5.1"}"
-: "${TERMUX_MIRROR:="https://termux.librehat.com/apt/termux-main/pool/main/o/openjdk-17"}"
+: "${POJAV_JRE_RELEASE:="jre17-ec28559"}"
+: "${POJAV_JRE_BASE:="https://github.com/PojavLauncherTeam/android-openjdk-build-multiarch/releases/download/${POJAV_JRE_RELEASE}"}"
 declare -A JRE_URLS
-# Build JRE .deb URLs for each arch
-for arch in aarch64 arm i686 x86_64; do
-    JRE_URLS[$arch]="${TERMUX_MIRROR}/openjdk-17_${JRE_VERSION}_${arch}.deb"
-done
+JRE_URLS[aarch64]="${POJAV_JRE_BASE}/jre17-arm64-20210825-release.tar.xz"
+JRE_URLS[arm]="${POJAV_JRE_BASE}/jre17-arm-20210914-release.tar.xz"
+JRE_URLS[i686]="${POJAV_JRE_BASE}/jre17-x86-20220225-release.tar.xz"
+JRE_URLS[x86_64]="${POJAV_JRE_BASE}/jre17-x86_64-20210825-release.tar.xz"
 
 CACHE_DIR="$SCRIPT_DIR/build-cache"
 DOWNLOADS_DIR="$CACHE_DIR/downloads"
@@ -170,7 +171,7 @@ phase_download() {
     download "$STEP_DEB_URL" "$STEP_DEB"
 
     for arch in "${JRE_ARCHS[@]}"; do
-        download "${JRE_URLS[$arch]}" "$DOWNLOADS_DIR/openjdk-17_${JRE_VERSION}_${arch}.deb"
+        download "${JRE_URLS[$arch]}" "$DOWNLOADS_DIR/jre17-${arch}.tar.xz"
     done
 
     echo "STEP_DEB=$STEP_DEB" > "$SCRIPT_DIR/.build-vars"
@@ -203,37 +204,18 @@ phase_extract() {
            "$ASSETS_DIR/step/logs" "$ASSETS_DIR/step/runStep.sh" \
            "$ASSETS_DIR/step/post-install.sh" 2>/dev/null || true
 
-    # --- Build libandroid-shmem.so for all archs ---
-    info "Building libandroid-shmem.so for all architectures..."
-    local ndk="$SCRIPT_DIR/build-cache/android-sdk/ndk/27.0.12077973"
-    for arch in "${JRE_ARCHS[@]}"; do
-        local abi_var="JRE_ABI_MAP_${arch}"
-        local abi="${!abi_var}"
-        local ndk_triple
-        case "$arch" in
-            aarch64) ndk_triple="aarch64-linux-android24" ;;
-            arm)     ndk_triple="armv7a-linux-androideabi24" ;;
-            i686)    ndk_triple="i686-linux-android24" ;;
-            x86_64)  ndk_triple="x86_64-linux-android24" ;;
-        esac
-        local clang="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/${ndk_triple}-clang"
-        if [[ -f "$clang" ]]; then
-            "$clang" -shared -fPIC -o "$ASSETS_DIR/jre/$abi/lib/libandroid-shmem.so" \
-                "$SCRIPT_DIR/app/src/main/jni/android_shmem.c" 2>/dev/null || \
-                info "Warning: failed to build android-shmem for $arch (using stub)"
-        fi
-    done
-
-    # --- Extract JREs for all architectures ---
+    # --- Extract JREs for all architectures (PojavLauncher) ---
     info "Copying JREs for all architectures..."
     for arch in "${JRE_ARCHS[@]}"; do
         local abi_var="JRE_ABI_MAP_${arch}"
         local abi="${!abi_var}"
-        local jre_deb="$DOWNLOADS_DIR/openjdk-17_${JRE_VERSION}_${arch}.deb"
+        local jre_tar="$DOWNLOADS_DIR/jre17-${arch}.tar.xz"
         local extract_dir="$JRE_EXTRACT_DIR/$arch"
 
         if [[ ! -d "$extract_dir" ]]; then
-            extract_deb "$jre_deb" "$extract_dir"
+            info "Extracting jre17-${arch}.tar.xz..."
+            mkdir -p "$extract_dir"
+            tar xf "$jre_tar" -C "$extract_dir"
         fi
 
         local jre_source
@@ -244,7 +226,8 @@ phase_extract() {
 
         mkdir -p "$ASSETS_DIR/jre/$abi"
         cp -a "$jre_source"/* "$ASSETS_DIR/jre/$abi/"
-        rm -rf "$ASSETS_DIR/jre/$abi/jmods" "$ASSETS_DIR/jre/$abi/demo" \
+        find "$ASSETS_DIR/jre/$abi" -name "*.debuginfo" -exec rm -f {} + 2>/dev/null || true
+        rm -rf "$ASSETS_DIR/jre/$abi/demo" \
                "$ASSETS_DIR/jre/$abi/man" "$ASSETS_DIR/jre/$abi/include" \
                "$ASSETS_DIR/jre/$abi/src.zip" 2>/dev/null || true
         find "$ASSETS_DIR/jre/$abi/bin" -type f ! -name "java" -exec rm -f {} + 2>/dev/null || true

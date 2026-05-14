@@ -84,8 +84,10 @@ class StepServerService : Service() {
     private fun buildClasspath(stepDir: File): String {
         val jars = mutableListOf<String>()
 
-        val serverJars = stepDir.listFiles { f -> f.name.startsWith("step-server-") && f.name.endsWith(".jar") }
-        serverJars?.sortedBy { it.name }?.forEach { jars.add(it.absolutePath) }
+        // All JARs in step root directory
+        stepDir.listFiles { f -> f.name.endsWith(".jar") }
+            ?.sortedBy { it.name }
+            ?.forEach { jars.add(it.absolutePath) }
 
         File(stepDir, "lib").takeIf { it.exists() }?.let { libDir ->
             libDir.listFiles { f -> f.name.endsWith(".jar") }
