@@ -64,13 +64,11 @@ class StepServerService : Service() {
         ServerState.isRunning = true
 
         Log.i(TAG, "Starting JVM...")
-        val nativeLibDir = applicationInfo.nativeLibraryDir
         val ret = JVMStub.startServer(
             jreDir = jreDir.absolutePath,
             classPath = classpath,
             warPath = webappDir.absolutePath,
-            port = serverPort,
-            nativeLibDir = nativeLibDir
+            port = serverPort
         )
 
         if (ret != 0) {
@@ -82,26 +80,10 @@ class StepServerService : Service() {
     }
 
     private fun buildClasspath(stepDir: File): String {
-        val jars = mutableListOf<String>()
-
-        // All JARs in step root directory
-        stepDir.listFiles { f -> f.name.endsWith(".jar") }
+        return stepDir.listFiles { f -> f.name.endsWith(".jar") }
             ?.sortedBy { it.name }
-            ?.forEach { jars.add(it.absolutePath) }
-
-        File(stepDir, "lib").takeIf { it.exists() }?.let { libDir ->
-            libDir.listFiles { f -> f.name.endsWith(".jar") }
-                ?.sortedBy { it.name }
-                ?.forEach { jars.add(it.absolutePath) }
-        }
-
-        File(stepDir, "step-web/WEB-INF/lib").takeIf { it.exists() }?.let { webinfLib ->
-            webinfLib.listFiles { f -> f.name.endsWith(".jar") }
-                ?.sortedBy { it.name }
-                ?.forEach { jars.add(it.absolutePath) }
-        }
-
-        return jars.joinToString(":")
+            ?.joinToString(":") { it.absolutePath }
+            ?: ""
     }
 
     private fun detectJreAbi(): String {

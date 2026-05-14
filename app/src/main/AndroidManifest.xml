@@ -25,11 +25,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".TabActivity"
-            android:exported="false"
-            android:launchMode="singleInstance" />
-
         <service
             android:name=".StepServerService"
             android:exported="false"

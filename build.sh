@@ -204,6 +204,22 @@ phase_extract() {
            "$ASSETS_DIR/step/logs" "$ASSETS_DIR/step/runStep.sh" \
            "$ASSETS_DIR/step/post-install.sh" 2>/dev/null || true
 
+    # --- Compile StepServerLauncher bootstrap JAR ---
+    local jdk_home
+    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
+    if [[ -n "$jdk_home" ]]; then
+        local boot_src="$SCRIPT_DIR/step-bootstrap/src/StepServerLauncher.java"
+        local boot_dir="$SCRIPT_DIR/build-cache/step-bootstrap"
+        rm -rf "$boot_dir" && mkdir -p "$boot_dir"
+        local cp
+        cp=$(find "$ASSETS_DIR/step" -maxdepth 3 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
+        "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" "$boot_src" 2>&1 && \
+        cd "$boot_dir" && "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" com/ && \
+        cd "$SCRIPT_DIR" && rm -rf "$boot_dir" && \
+        info "StepServerLauncher compiled" || \
+        info "Warning: StepServerLauncher compilation failed (server will use fallback)"
+    fi
+
     # --- Extract JREs for all architectures (PojavLauncher) ---
     info "Copying JREs for all architectures..."
     for arch in "${JRE_ARCHS[@]}"; do
@@ -418,7 +434,7 @@ usage() {
     echo "  download    Download STEP .deb and JRE .debs (all 4 archs)"
     echo "  extract     Extract debs and prepare assets"
     echo "  build       Build APK (runs extract first if needed)"
-echo "  setup       Install JDK 21, Android SDK, Gradle"
+    echo "  setup       Install JDK 21, Android SDK, Gradle"
     echo "  system-image Download Android 34 x86_64 system image for emulator"
     echo "  clean       Remove all downloaded and extracted files"
     echo "  all         Run all phases (default)"

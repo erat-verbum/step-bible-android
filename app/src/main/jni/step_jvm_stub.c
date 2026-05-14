@@ -15,13 +15,11 @@ JNIEXPORT jint JNICALL
 Java_com_eratverbum_stepbible_JVMStub_startServer(
     JNIEnv *env, jclass clazz,
     jstring jre_dir, jstring class_path,
-    jstring war_path, jint port,
-    jstring native_lib_dir) {
+    jstring war_path, jint port) {
 
     const char *c_jre_dir = (*env)->GetStringUTFChars(env, jre_dir, NULL);
     const char *c_class_path = (*env)->GetStringUTFChars(env, class_path, NULL);
     const char *c_war_path = (*env)->GetStringUTFChars(env, war_path, NULL);
-    const char *c_native_dir = (*env)->GetStringUTFChars(env, native_lib_dir, NULL);
 
     // Load libjvm
     char libjvm_path[1024];
@@ -126,6 +124,5 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
     (*env)->ReleaseStringUTFChars(env, jre_dir, c_jre_dir);
     (*env)->ReleaseStringUTFChars(env, class_path, c_class_path);
     (*env)->ReleaseStringUTFChars(env, war_path, c_war_path);
-    (*env)->ReleaseStringUTFChars(env, native_lib_dir, c_native_dir);
     return 0;
 }

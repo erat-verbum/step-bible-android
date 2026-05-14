@@ -9,7 +9,6 @@ object JVMStub {
         jreDir: String,
         classPath: String,
         warPath: String,
-        port: Int,
-        nativeLibDir: String
+        port: Int
     ): Int
 }
