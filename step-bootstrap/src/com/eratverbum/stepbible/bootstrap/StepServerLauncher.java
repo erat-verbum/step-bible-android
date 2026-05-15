@@ -77,7 +77,7 @@ public class StepServerLauncher {
             java.nio.file.Paths.get(System.getProperty("java.io.tmpdir")), "tomcat");
         tomcat.setBaseDir(dir.toString());
 
-        String cp = (contextPath == null || contextPath.isEmpty()) ? "/" : contextPath;
+        String cp = (contextPath == null || contextPath.isEmpty()) ? "" : contextPath;
         tomcat.addWebapp(cp, new java.io.File(warPath).getAbsolutePath());
         tomcat.start();
 

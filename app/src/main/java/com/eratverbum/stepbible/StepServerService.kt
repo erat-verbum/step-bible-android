@@ -100,33 +100,53 @@ class StepServerService : Service() {
         try {
             val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
             val zip = ZipFile(apkPath)
-            val entries = zip.entries()
-            val prefixJre = "assets/jre/$jreAbi/"
-            val prefixStep = "assets/step/"
 
+            // Extract JRE files individually
+            val prefixJre = "assets/jre/$jreAbi/"
+            val entries = zip.entries()
             while (entries.hasMoreElements()) {
                 val entry = entries.nextElement()
                 val name = entry.name
-                when {
-                    name.startsWith(prefixJre) && !entry.isDirectory -> {
-                        val relPath = name.removePrefix(prefixJre)
-                        val dest = File(jreDir, relPath)
-                        dest.parentFile?.mkdirs()
-                        zip.getInputStream(entry).use { input ->
-                            dest.outputStream().use { output -> input.copyTo(output) }
-                        }
-                    }
-                    name.startsWith(prefixStep) && !entry.isDirectory -> {
-                        val relPath = name.removePrefix(prefixStep)
-                        val dest = File(stepDir, relPath)
-                        dest.parentFile?.mkdirs()
-                        zip.getInputStream(entry).use { input ->
-                            dest.outputStream().use { output -> input.copyTo(output) }
-                        }
+                if (name.startsWith(prefixJre) && !entry.isDirectory) {
+                    val relPath = name.removePrefix(prefixJre)
+                    val dest = File(jreDir, relPath)
+                    dest.parentFile?.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        dest.outputStream().use { output -> input.copyTo(output) }
                     }
                 }
             }
             zip.close()
+
+            // Extract STEP data from tar.gz archive
+            // (aapt strips .gz extension from assets, so the entry is step.tar)
+            val tarEntry = "assets/step.tar"
+            val apkZip = ZipFile(apkPath)
+            if (apkZip.getEntry(tarEntry) != null) {
+                Log.i(TAG, "Extracting step.tar...")
+                TarExtractor.extractFromApk(apkPath, tarEntry, appDir)
+            } else {
+                // Fallback: extract individual step/ assets
+                Log.i(TAG, "Extracting individual step files...")
+                val zip2 = ZipFile(apkPath)
+                val entries2 = zip2.entries()
+                val prefixStep = "assets/step/"
+                while (entries2.hasMoreElements()) {
+                    val entry = entries2.nextElement()
+                    val name = entry.name
+                    if (name.startsWith(prefixStep) && !entry.isDirectory) {
+                        val relPath = name.removePrefix(prefixStep)
+                        val dest = File(stepDir, relPath)
+                        dest.parentFile?.mkdirs()
+                        zip2.getInputStream(entry).use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
+                }
+                zip2.close()
+            }
+            apkZip.close()
+
             Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed", e)

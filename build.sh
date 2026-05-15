@@ -258,7 +258,16 @@ phase_extract() {
         find "$ASSETS_DIR/jre/$abi/bin" -type f ! -name "java" -exec rm -f {} + 2>/dev/null || true
     done
 
-    info "STEP size: $(du -sh "$ASSETS_DIR/step" | cut -f1)"
+    # --- Archive STEP data into single tar.gz for fast first-launch extraction ---
+    info "Archiving STEP data into step.tar.gz..."
+    cd "$ASSETS_DIR"
+    tar --format=posix -czf "step.tar.gz" step/ 2>/dev/null && \
+        rm -rf step/ && \
+        info "step.tar.gz: $(du -h step.tar.gz | cut -f1)" || \
+        info "Warning: failed to create tar.gz, keeping individual files"
+    cd "$SCRIPT_DIR"
+
+    info "STEP size: $(du -sh "$ASSETS_DIR/step" 2>/dev/null || echo "archived")"
     for d in "$ASSETS_DIR/jre"/*/; do
         info "  JRE $(basename "$d"): $(du -sh "$d" | cut -f1)"
     done
