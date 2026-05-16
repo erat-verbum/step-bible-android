@@ -93,7 +93,6 @@ class StepServerService : Service() {
 
     private fun extractAssets(appDir: File) {
         Log.i(TAG, "Extracting assets (first launch)...")
-        val stepDir = File(appDir, "step")
         val jreDir = File(appDir, "jre")
         val jreAbi = detectJreAbi()
 
@@ -118,34 +117,9 @@ class StepServerService : Service() {
             }
             zip.close()
 
-            // Extract STEP data from tar.gz archive
-            // (aapt strips .gz extension from assets, so the entry is step.tar)
-            val tarEntry = "assets/step.tar"
-            val apkZip = ZipFile(apkPath)
-            if (apkZip.getEntry(tarEntry) != null) {
-                Log.i(TAG, "Extracting step.tar...")
-                TarExtractor.extractFromApk(apkPath, tarEntry, appDir)
-            } else {
-                // Fallback: extract individual step/ assets
-                Log.i(TAG, "Extracting individual step files...")
-                val zip2 = ZipFile(apkPath)
-                val entries2 = zip2.entries()
-                val prefixStep = "assets/step/"
-                while (entries2.hasMoreElements()) {
-                    val entry = entries2.nextElement()
-                    val name = entry.name
-                    if (name.startsWith(prefixStep) && !entry.isDirectory) {
-                        val relPath = name.removePrefix(prefixStep)
-                        val dest = File(stepDir, relPath)
-                        dest.parentFile?.mkdirs()
-                        zip2.getInputStream(entry).use { input ->
-                            dest.outputStream().use { output -> input.copyTo(output) }
-                        }
-                    }
-                }
-                zip2.close()
-            }
-            apkZip.close()
+            // Extract STEP data from tar archive (aapt strips .gz from assets)
+            Log.i(TAG, "Extracting step.tar...")
+            TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
 
             Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
         } catch (e: Exception) {
