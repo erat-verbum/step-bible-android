@@ -298,14 +298,41 @@ phase_build() {
         gradle $gradle_props assembleDebug
     fi
 
-    local apk
-    apk=$(find "$SCRIPT_DIR/app/build/outputs/apk/debug" -name '*.apk' | head -1)
-    if [[ -f "$apk" ]]; then
-        info "APK generated: $apk"
-        info "Size: $(du -h "$apk" | cut -f1)"
-    else
-        die "APK not found at expected path"
-    fi
+    # Strip non-matching JRE from per-ABI APKs
+    for apk in "$SCRIPT_DIR/app/build/outputs/apk/debug/"*.apk; do
+        [[ -f "$apk" ]] || continue
+        local abi
+        case "$(basename "$apk")" in
+            *arm64-v8a*)  abi="arm64-v8a" ;;
+            *x86_64*)     abi="x86_64" ;;
+            *)            info "APK generated: $apk (size: $(du -h "$apk" | cut -f1))"; continue ;;
+        esac
+        local other
+        case "$abi" in
+            arm64-v8a) other="x86_64" ;;
+            x86_64)    other="arm64-v8a" ;;
+        esac
+        info "Processing $abi APK, removing JRE/$other..."
+        local tmp_apk="$apk.tmp"
+        # Zip stores prefix, use the actual internal path
+        if python3 -c "
+import zipfile, os
+src = zipfile.ZipFile('$apk', 'r')
+dst = zipfile.ZipFile('$tmp_apk', 'w', zipfile.ZIP_DEFLATED)
+for f in src.filelist:
+    if 'assets/jre/$other/' not in f.filename:
+        dst.writestr(f, src.read(f.filename))
+src.close()
+dst.close()
+os.replace('$tmp_apk', '$apk')
+" 2>/dev/null; then
+            info "  Stripped to $(du -h "$apk" | cut -f1)"
+        else
+            rm -f "$tmp_apk"
+            info "  Skipped (python3 stripping failed)"
+        fi
+        info "APK generated: $apk (size: $(du -h "$apk" | cut -f1))"
+    done
 }
 
 phase_setup() {
