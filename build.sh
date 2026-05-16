@@ -11,8 +11,6 @@ cd "$SCRIPT_DIR"
 : "${POJAV_JRE_BASE:="https://github.com/PojavLauncherTeam/android-openjdk-build-multiarch/releases/download/${POJAV_JRE_RELEASE}"}"
 declare -A JRE_URLS
 JRE_URLS[aarch64]="${POJAV_JRE_BASE}/jre17-arm64-20210825-release.tar.xz"
-JRE_URLS[arm]="${POJAV_JRE_BASE}/jre17-arm-20210914-release.tar.xz"
-JRE_URLS[i686]="${POJAV_JRE_BASE}/jre17-x86-20220225-release.tar.xz"
 JRE_URLS[x86_64]="${POJAV_JRE_BASE}/jre17-x86_64-20210825-release.tar.xz"
 
 CACHE_DIR="$SCRIPT_DIR/build-cache"
@@ -26,10 +24,8 @@ SDK_DIR="$CACHE_DIR/android-sdk"
 GRADLE_DIR="$CACHE_DIR/gradle"
 ASSETS_DIR="$SCRIPT_DIR/app/src/main/assets"
 
-JRE_ARCHS=("aarch64" "arm" "i686" "x86_64")
+JRE_ARCHS=("aarch64" "x86_64")
 JRE_ABI_MAP_aarch64="arm64-v8a"
-JRE_ABI_MAP_arm="armeabi-v7a"
-JRE_ABI_MAP_i686="x86"
 JRE_ABI_MAP_x86_64="x86_64"
 
 info()  { echo "  -> $*"; }
