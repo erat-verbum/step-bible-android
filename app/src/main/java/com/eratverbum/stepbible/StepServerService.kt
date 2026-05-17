@@ -120,11 +120,64 @@ class StepServerService : Service() {
             // Extract STEP data from tar archive (aapt strips .gz from assets)
             Log.i(TAG, "Extracting step.tar...")
             TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
+            linkJswordData(appDir, File(appDir, "step"))
 
             Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed", e)
             throw e
+        }
+    }
+
+    private fun linkJswordData(appDir: File, stepDir: File) {
+        val jswordHome = File(appDir, ".jsword")
+        val jswordSource = File(stepDir, "homes/jsword")
+        val swordHome = File(stepDir, "homes/sword")
+        if (!jswordSource.exists()) return
+        jswordHome.mkdirs()
+        try {
+            // Symlink modules/ (SWORD data files, needed by JSword for Bible text)
+            val modsLink = File(jswordHome, "modules")
+            val modsSword = File(swordHome, "modules")
+            if (modsSword.exists()) {
+                if (!modsLink.exists())
+                    java.nio.file.Files.createSymbolicLink(
+                        modsLink.toPath(), modsSword.toPath().toAbsolutePath())
+                Log.i(TAG, "Linked modules to jsword")
+            }
+            // Copy mods.d/ (module config .conf files, needed by JSword)
+            val modsDest = File(jswordHome, "mods.d")
+            val modsSource = File(swordHome, "mods.d")
+            if (modsSource.exists()) {
+                modsDest.mkdirs()
+                modsSource.listFiles { f -> f.name.endsWith(".conf") }?.forEach { conf ->
+                    val dest = File(modsDest, conf.name)
+                    if (!dest.exists()) conf.copyTo(dest)
+                }
+                Log.i(TAG, "Copied mods.d to jsword")
+            }
+            // Symlink lucene/Sword modules (Lucene search indexes)
+            val swordLink = File(jswordHome, "lucene/Sword")
+            val swordSource = File(jswordSource, "lucene/Sword")
+            if (swordSource.exists()) {
+                swordLink.parentFile?.mkdirs()
+                if (!swordLink.exists())
+                    java.nio.file.Files.createSymbolicLink(
+                        swordLink.toPath(), swordSource.toPath().toAbsolutePath())
+                Log.i(TAG, "Linked lucene/Sword to jsword")
+            }
+            // Symlink step/ entities
+            val stepLink = File(jswordHome, "step/entities")
+            val stepSource = File(jswordSource, "step/entities")
+            if (stepSource.exists()) {
+                stepLink.parentFile?.mkdirs()
+                if (!stepLink.exists())
+                    java.nio.file.Files.createSymbolicLink(
+                        stepLink.toPath(), stepSource.toPath().toAbsolutePath())
+                Log.i(TAG, "Linked step/entities to jsword")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to link jsword data", e)
         }
     }
 
