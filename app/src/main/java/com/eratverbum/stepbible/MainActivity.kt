@@ -66,6 +66,8 @@ class MainActivity : AppCompatActivity() {
         btnForward.isEnabled = false
         btnBack.setOnClickListener { goBack() }
         btnForward.setOnClickListener { goForward() }
+        btnBack.setOnLongClickListener { showHistory(true); true }
+        btnForward.setOnLongClickListener { showHistory(false); true }
         btnReload.setOnClickListener { reloadCurrent() }
         btnNewTab.setOnClickListener { createTab("http://127.0.0.1:${ServerState.port}/") }
         retryButton.setOnClickListener { retry() }
@@ -249,23 +251,61 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateNavButtons() {
         if (currentIndex in tabs.indices) {
-            btnBack.isEnabled = tabs[currentIndex].webView.canGoBack()
-            btnForward.isEnabled = tabs[currentIndex].webView.canGoForward()
+            val wv = tabs[currentIndex].webView
+            btnBack.isEnabled = wv.canGoBack()
+            btnForward.isEnabled = wv.canGoForward()
         }
+    }
+
+    private fun showHistory(back: Boolean) {
+        if (currentIndex !in tabs.indices) return
+        val wv = tabs[currentIndex].webView
+        val list = wv.copyBackForwardList()
+        val size = list.size
+        val cur = list.currentIndex
+        val start = if (back) 0 else cur + 1
+        val end = if (back) cur else size
+        if (start >= end || size == 0) return
+
+        val indices = mutableListOf<Int>()
+        val titles = mutableListOf<String>()
+        for (i in start until end) {
+            val item = list.getItemAtIndex(i) ?: continue
+            indices.add(i)
+            titles.add(if (item.title.isNullOrBlank()) item.url else item.title)
+        }
+        if (titles.isEmpty()) return
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle(if (back) "Back" else "Forward")
+            .setItems(titles.toTypedArray()) { _, which ->
+                val target = indices[which]
+                val steps = target - cur
+                wv.goBackOrForward(steps)
+            }
+            .show()
     }
 
     private fun goBack() {
-        if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoBack()) {
-            tabs[currentIndex].webView.goBack()
-            updateNavButtons()
+        if (currentIndex !in tabs.indices) return
+        val wv = tabs[currentIndex].webView
+        if (wv.canGoBack()) {
+            wv.goBack()
+        } else {
+            wv.evaluateJavascript("window.history.back()", null)
         }
+        updateNavButtons()
     }
 
     private fun goForward() {
-        if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoForward()) {
-            tabs[currentIndex].webView.goForward()
-            updateNavButtons()
+        if (currentIndex !in tabs.indices) return
+        val wv = tabs[currentIndex].webView
+        if (wv.canGoForward()) {
+            wv.goForward()
+        } else {
+            wv.evaluateJavascript("window.history.forward()", null)
         }
+        updateNavButtons()
     }
 
     private fun reloadCurrent() {
@@ -343,11 +383,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
-        if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoBack()) {
-            tabs[currentIndex].webView.goBack()
-        } else {
-            super.onBackPressed()
+        if (currentIndex in tabs.indices) {
+            val wv = tabs[currentIndex].webView
+            if (wv.canGoBack()) {
+                wv.goBack()
+                return
+            }
+            wv.evaluateJavascript("window.history.back()", null)
+            return
         }
+        super.onBackPressed()
     }
 
     override fun onDestroy() {
