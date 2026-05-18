@@ -11,12 +11,13 @@ object TarExtractor {
 
     fun extractFromApk(apkPath: String, entryName: String, destDir: File) {
         val zip = ZipFile(apkPath)
-        val entry = zip.getEntry(entryName) ?: throw IOException("Entry not found: $entryName")
+        val entry = zip.getEntry(entryName) ?: run { zip.close(); throw IOException("Entry not found: $entryName") }
         val raw = zip.getInputStream(entry)
         val buf = ByteArray(64 * 1024)
         var pendingPath: String? = null
-
         try {
+
+
             while (true) {
                 val header = ByteArray(512)
                 var offset = 0

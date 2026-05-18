@@ -49,31 +49,36 @@ class StepServerService : Service() {
     private fun setupAndStartServer() {
         ServerState.jvmStarted = true
 
-        val appDir = filesDir
-        val jreDir = File(appDir, "jre")
-        val stepDir = File(appDir, "step")
+        var retries = 0
+        while (retries < 2) {
+            val appDir = filesDir
+            val jreDir = File(appDir, "jre")
+            val stepDir = File(appDir, "step")
 
-        if (!jreDir.exists() || !stepDir.exists()) {
-            extractAssets(appDir)
-        }
+            if (!jreDir.exists() || !stepDir.exists()) {
+                extractAssets(appDir)
+            }
 
-        val classpath = buildClasspath(stepDir)
-        val webappDir = File(stepDir, "step-web")
+            val classpath = buildClasspath(stepDir)
+            val webappDir = File(stepDir, "step-web")
 
-        ServerState.port = serverPort
+            ServerState.port = serverPort
 
-        Log.i(TAG, "Starting JVM...")
-        val ret = JVMStub.startServer(
-            jreDir = jreDir.absolutePath,
-            classPath = classpath,
-            warPath = webappDir.absolutePath,
-            port = serverPort
-        )
+            Log.i(TAG, "Starting JVM...")
+            val ret = JVMStub.startServer(
+                jreDir = jreDir.absolutePath,
+                classPath = classpath,
+                warPath = webappDir.absolutePath,
+                port = serverPort
+            )
 
-        if (ret != 0) {
-            Log.e(TAG, "JVM exited with error: $ret")
-        } else {
-            Log.i(TAG, "JVM exited normally")
+            if (ret == 0) {
+                Log.i(TAG, "JVM exited normally")
+                return
+            }
+            Log.e(TAG, "JVM exited with error: $ret (attempt ${retries + 1})")
+            retries++
+            if (retries < 2) Thread.sleep(1000)
         }
     }
 
