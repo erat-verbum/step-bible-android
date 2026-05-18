@@ -2,7 +2,14 @@
 <resources>
     <string name="app_name">STEP Bible</string>
     <string name="server_starting">Starting STEP Bible server...</string>
+    <string name="server_started">STEP Bible is ready</string>
     <string name="server_failed">Failed to start STEP Bible</string>
+    <string name="server_running">STEP Bible server running</string>
     <string name="tab_close">Close tab</string>
     <string name="channel_server">STEP Server</string>
+    <string name="retry">Retry</string>
+    <string name="back">Back</string>
+    <string name="forward">Forward</string>
+    <string name="reload">Reload</string>
+    <string name="new_tab">New tab</string>
 </resources>

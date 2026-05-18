@@ -22,6 +22,23 @@ class StepServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Update notification to server running state
+        if (intent?.action == "SERVER_READY") {
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, CHANNEL_ID)
+            } else {
+                Notification.Builder(this)
+            }
+            val notification = builder
+                .setContentTitle("STEP Bible")
+                .setContentText("Server running on port $serverPort")
+                .setSmallIcon(android.R.drawable.ic_menu_search)
+                .setOngoing(true)
+                .build()
+            startForeground(1, notification)
+            return START_STICKY
+        }
+
         if (ServerState.jvmStarted) return START_STICKY
 
         val notification = buildNotification()

@@ -1,18 +1,25 @@
 package com.eratverbum.stepbible
 
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Message
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import java.net.HttpURLConnection
 import java.net.URL
@@ -20,12 +27,19 @@ import java.net.URL
 class MainActivity : AppCompatActivity() {
 
     private lateinit var container: ViewGroup
+    private lateinit var toolbar: LinearLayout
     private lateinit var tabBar: LinearLayout
+    private lateinit var btnBack: ImageButton
+    private lateinit var btnForward: ImageButton
+    private lateinit var btnReload: ImageButton
+    private lateinit var btnNewTab: ImageButton
     private lateinit var loadingSpinner: ProgressBar
     private lateinit var loadingText: TextView
+    private lateinit var retryButton: Button
     private val tabs = mutableListOf<TabInfo>()
     private var currentIndex = -1
     private var closingTab = false
+    private var serverFailed = false
 
     private data class TabInfo(
         val webView: WebView,
@@ -38,14 +52,30 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         container = findViewById(R.id.webview_container)
+        toolbar = findViewById(R.id.toolbar)
         tabBar = findViewById(R.id.tab_bar)
+        btnBack = findViewById(R.id.btn_back)
+        btnForward = findViewById(R.id.btn_forward)
+        btnReload = findViewById(R.id.btn_reload)
+        btnNewTab = findViewById(R.id.btn_new_tab)
         loadingSpinner = findViewById(R.id.loading_spinner)
         loadingText = findViewById(R.id.loading_text)
+        retryButton = findViewById(R.id.btn_retry)
+
+        btnBack.setOnClickListener { goBack() }
+        btnForward.setOnClickListener { goForward() }
+        btnReload.setOnClickListener { reloadCurrent() }
+        btnNewTab.setOnClickListener { createTab("http://127.0.0.1:${ServerState.port}/") }
+        retryButton.setOnClickListener { retry() }
 
         startServerService()
     }
 
     private fun startServerService() {
+        serverFailed = false
+        retryButton.visibility = View.GONE
+        loadingSpinner.visibility = View.VISIBLE
+        loadingText.text = getString(R.string.server_starting)
         val intent = Intent(this, StepServerService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -53,6 +83,10 @@ class MainActivity : AppCompatActivity() {
             startService(intent)
         }
         waitForServer()
+    }
+
+    private fun retry() {
+        startServerService()
     }
 
     private fun waitForServer() {
@@ -84,13 +118,29 @@ class MainActivity : AppCompatActivity() {
     private fun onServerReady() {
         loadingSpinner.visibility = View.GONE
         loadingText.visibility = View.GONE
+        retryButton.visibility = View.GONE
+        toolbar.visibility = View.VISIBLE
         tabBar.visibility = View.VISIBLE
+        updateNotificationServerRunning()
         createTab("http://127.0.0.1:${ServerState.port}/")
     }
 
     private fun onServerFailed() {
-        loadingText.text = getString(R.string.server_failed)
+        serverFailed = true
         loadingSpinner.visibility = View.GONE
+        loadingText.text = getString(R.string.server_failed)
+        retryButton.visibility = View.VISIBLE
+    }
+
+    private fun updateNotificationServerRunning() {
+        val intent = Intent(this, StepServerService::class.java).apply {
+            action = "SERVER_READY"
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
     private val chromeClient = object : WebChromeClient() {
@@ -108,6 +158,16 @@ class MainActivity : AppCompatActivity() {
             resultMsg?.obj = transport
             resultMsg?.sendToTarget()
             addTabView(newTab, "")
+            return true
+        }
+
+        override fun onShowFileChooser(
+            webView: WebView?,
+            filePathCallback: android.webkit.ValueCallback<Array<Uri>>?,
+            fileChooserParams: android.webkit.WebChromeClient.FileChooserParams?
+        ): Boolean {
+            val intent = fileChooserParams?.createIntent() ?: return false
+            startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
             return true
         }
     }
@@ -146,11 +206,12 @@ class MainActivity : AppCompatActivity() {
                 val afterPort = url.removePrefix("http://127.0.0.1:$port")
                     .removePrefix("http://localhost:$port")
                 if (afterPort.isNotEmpty() && afterPort[0] != '/' && afterPort[0] != '#' && afterPort[0] != '?') {
-                    return true // block external URLs
+                    return true
                 }
                 return false
             }
             override fun onPageFinished(view: WebView?, url: String?) {
+                updateNavButtons()
                 if (view != null) {
                     val idx = tabs.indexOfFirst { it.webView == view }
                     if (idx >= 0) {
@@ -171,7 +232,41 @@ class MainActivity : AppCompatActivity() {
                 """.trimIndent(), null)
             }
         }
+        wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
+            val request = android.app.DownloadManager.Request(Uri.parse(url))
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.substringAfterLast('/'))
+            getSystemService(Context.DOWNLOAD_SERVICE)?.let { dm ->
+                (dm as DownloadManager).enqueue(request)
+                Toast.makeText(this, "Download started", Toast.LENGTH_SHORT).show()
+            }
+        }
         return wv
+    }
+
+    private fun updateNavButtons() {
+        if (currentIndex in tabs.indices) {
+            btnBack.isEnabled = tabs[currentIndex].webView.canGoBack()
+            btnForward.isEnabled = tabs[currentIndex].webView.canGoForward()
+        }
+    }
+
+    private fun goBack() {
+        if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoBack()) {
+            tabs[currentIndex].webView.goBack()
+        }
+    }
+
+    private fun goForward() {
+        if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoForward()) {
+            tabs[currentIndex].webView.goForward()
+        }
+    }
+
+    private fun reloadCurrent() {
+        if (currentIndex in tabs.indices) {
+            tabs[currentIndex].webView.reload()
+        }
     }
 
     private fun addTabView(wv: WebView, url: String) {
@@ -189,7 +284,7 @@ class MainActivity : AppCompatActivity() {
         val titleView = tabView.findViewById<TextView>(R.id.tab_title)
         val closeBtn = tabView.findViewById<ImageView>(R.id.tab_close)
 
-        titleView.text = if (title.isBlank()) "Loading..." else title
+        titleView.text = if (title.isBlank()) "STEP Bible" else title
         tabView.setOnClickListener {
             val idx = tabs.indexOfFirst { it.tabView == tabView }
             if (idx >= 0) showTab(idx)
@@ -218,6 +313,7 @@ class MainActivity : AppCompatActivity() {
         currentIndex = index
         updateTabBarSelection()
         tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
+        updateNavButtons()
     }
 
     private fun closeTab(index: Int) {
@@ -255,8 +351,10 @@ class MainActivity : AppCompatActivity() {
             tab.webView.destroy()
         }
         tabs.clear()
-        // Don't stop the service — the server runs independently.
-        // Stopping it here would kill the JVM on rotation.
         super.onDestroy()
+    }
+
+    companion object {
+        private const val FILE_CHOOSER_REQUEST_CODE = 1001
     }
 }
