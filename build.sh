@@ -4,6 +4,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+cleanup() {
+    local exit_code=$?
+    rm -f "$SCRIPT_DIR/build-cache/downloads/"*.partial 2>/dev/null
+    if [[ -n "${EMULATOR_PID:-}" ]] && kill -0 "$EMULATOR_PID" 2>/dev/null; then
+        kill "$EMULATOR_PID" 2>/dev/null || true
+    fi
+    exit "$exit_code"
+}
+trap cleanup EXIT INT TERM
+
 : "${STEP_DEB_URL:=""}"
 : "${JRE_VERSION:="17.0.19"}"
 : "${GRADLE_VERSION:="9.5.1"}"
@@ -59,7 +69,8 @@ download() {
     fi
     mkdir -p "$(dirname "$dest")"
     info "Downloading $(basename "$dest")..."
-    curl -fSL "$url" -o "$dest" || die "Download failed: $url"
+    curl -fSL "$url" -o "$dest.partial" || die "Download failed: $url"
+    mv "$dest.partial" "$dest"
 }
 
 extract_deb() {

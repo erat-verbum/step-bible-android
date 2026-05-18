@@ -56,6 +56,8 @@ object TarExtractor {
             pendingPath = null
 
             val cleanName = if (resolvedName.startsWith("./")) resolvedName.removePrefix("./") else resolvedName
+            if (cleanName.contains("..") || cleanName.startsWith("/"))
+                throw IOException("Invalid tar entry path: $cleanName")
             val dest = File(destDir, cleanName)
 
             if (type == '5' || type == '\u0000' && cleanName.endsWith("/")) {

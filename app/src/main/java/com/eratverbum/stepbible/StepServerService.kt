@@ -46,6 +46,18 @@ class StepServerService : Service() {
         super.onDestroy()
     }
 
+    private val extractionMarker = File(filesDir, ".extraction-complete")
+    private val versionMarker = File(filesDir, ".app-version")
+
+    private fun needExtraction(): Boolean {
+        if (!extractionMarker.exists()) return true
+        val storedVersion = try { versionMarker.readText().trim().toInt() } catch (_: Exception) { 0 }
+        val currentVersion = try {
+            packageManager.getPackageInfo(packageName, 0).versionCode
+        } catch (_: Exception) { 0 }
+        return storedVersion != currentVersion
+    }
+
     private fun setupAndStartServer() {
         var retries = 0
         while (retries < 2) {
@@ -53,8 +65,17 @@ class StepServerService : Service() {
             val jreDir = File(appDir, "jre")
             val stepDir = File(appDir, "step")
 
-            if (!jreDir.exists() || !stepDir.exists()) {
-                extractAssets(appDir)
+            if (needExtraction()) {
+                try {
+                    extractAssets(appDir)
+                    extractionMarker.createNewFile()
+                    versionMarker.writeText(
+                        packageManager.getPackageInfo(packageName, 0).versionCode.toString())
+                } catch (e: Exception) {
+                    Log.e(TAG, "Extraction failed", e)
+                    extractionMarker.delete()
+                    return
+                }
             }
 
             val classpath = buildClasspath(stepDir)

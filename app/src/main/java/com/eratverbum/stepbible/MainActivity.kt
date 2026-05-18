@@ -137,6 +137,14 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
         }
         wv.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                val url = request?.url?.toString() ?: return false
+                if (!url.startsWith("http://127.0.0.1:${ServerState.port}/") &&
+                    !url.startsWith("http://localhost:${ServerState.port}/")) {
+                    return true // block external URLs
+                }
+                return false
+            }
             override fun onPageFinished(view: WebView?, url: String?) {
                 if (view != null) {
                     val idx = tabs.indexOfFirst { it.webView == view }
@@ -242,7 +250,8 @@ class MainActivity : AppCompatActivity() {
             tab.webView.destroy()
         }
         tabs.clear()
-        stopService(Intent(this, StepServerService::class.java))
+        // Don't stop the service — the server runs independently.
+        // Stopping it here would kill the JVM on rotation.
         super.onDestroy()
     }
 }
