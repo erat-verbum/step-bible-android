@@ -2,6 +2,8 @@ package com.eratverbum.stepbible
 
 import android.app.DownloadManager
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -258,18 +260,62 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTabOverview() {
         if (tabs.isEmpty()) return
-        val items = tabs.mapIndexed { i, t -> "${i + 1}. ${if (t.title.isBlank()) "STEP Bible" else t.title}" }
-        val checked = currentIndex
 
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Tabs (${tabs.size})")
-            .setSingleChoiceItems(items.toTypedArray(), checked) { dialog, which ->
-                dialog.dismiss()
-                showTab(which)
+        val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
+        val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
+        builder.setView(view)
+        val dialog = builder.create()
+        dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+
+        val grid = view.findViewById<android.widget.GridView>(R.id.tab_grid)
+        view.findViewById<android.widget.ImageButton>(R.id.btn_close_overview).setOnClickListener { dialog.dismiss() }
+
+        val thumbWidth = (resources.displayMetrics.widthPixels / 2) - 24
+        val thumbHeight = (thumbWidth * 3) / 2
+
+        val adapter = object : android.widget.BaseAdapter() {
+            override fun getCount() = tabs.size
+            override fun getItem(i: Int) = tabs[i]
+            override fun getItemId(i: Int) = i.toLong()
+            override fun getView(pos: Int, convert: android.view.View?, parent: ViewGroup): View {
+                val v = convert ?: layoutInflater.inflate(R.layout.item_tab_preview, parent, false)
+                val title = v.findViewById<TextView>(R.id.tab_title)
+                val thumb = v.findViewById<ImageView>(R.id.tab_thumbnail)
+                val close = v.findViewById<ImageButton>(R.id.tab_preview_close)
+                val tab = tabs[pos]
+
+                title.text = if (tab.title.isBlank()) "STEP Bible" else tab.title
+                title.isSelected = pos == currentIndex
+
+                // Generate thumbnail by rendering WebView to bitmap
+                try {
+                    val wv = tab.webView
+                    val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    val sx = thumbWidth.toFloat() / wv.width.toFloat()
+                    val sy = thumbHeight.toFloat() / wv.height.toFloat()
+                    canvas.scale(sx, sy)
+                    wv.draw(canvas)
+                    thumb.setImageBitmap(bmp)
+                } catch (_: Exception) {
+                    thumb.setImageResource(android.R.drawable.ic_menu_search)
+                }
+
+                v.setOnClickListener {
+                    dialog.dismiss()
+                    showTab(pos)
+                }
+                close.setOnClickListener {
+                    closeTab(pos)
+                    notifyDataSetChanged()
+                    if (tabs.isEmpty()) dialog.dismiss()
+                }
+                return v
             }
-            .setNeutralButton("Close current") { _, _ -> closeTab(currentIndex) }
-            .setPositiveButton("Done", null)
-            .show()
+        }
+
+        grid.adapter = adapter
+        dialog.show()
     }
 
     private fun showHistory(back: Boolean) {
