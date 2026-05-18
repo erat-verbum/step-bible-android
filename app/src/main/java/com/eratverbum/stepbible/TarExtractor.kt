@@ -10,75 +10,86 @@ object TarExtractor {
     private const val TAG = "TarExtr"
 
     fun extractFromApk(apkPath: String, entryName: String, destDir: File) {
-        val zip = ZipFile(apkPath)
-        val entry = zip.getEntry(entryName) ?: run { zip.close(); throw IOException("Entry not found: $entryName") }
-        val raw = zip.getInputStream(entry)
+        ZipFile(apkPath).use { zip ->
+            val entry = zip.getEntry(entryName)
+                ?: throw IOException("Entry not found: $entryName")
+            val raw = zip.getInputStream(entry)
+            try {
+                extractTar(raw, destDir)
+            } finally {
+                raw.close()
+            }
+        }
+    }
+
+    private fun extractTar(raw: java.io.InputStream, destDir: File) {
         val buf = ByteArray(64 * 1024)
         var pendingPath: String? = null
-        try {
 
+        while (true) {
+            val header = ByteArray(512)
+            var offset = 0
+            while (offset < 512) {
+                val read = raw.read(header, offset, 512 - offset)
+                if (read < 0) return
+                offset += read
+            }
 
-            while (true) {
-                val header = ByteArray(512)
-                var offset = 0
-                while (offset < 512) {
-                    val read = raw.read(header, offset, 512 - offset)
-                    if (read < 0) return
-                    offset += read
-                }
+            if (header.all { it == 0.toByte() }) return
 
-                // Check for end-of-archive (two zero blocks)
-                if (header.all { it == 0.toByte() }) return
+            val size = parseOctal(header, 124, 12)
+            val type = header[156].toInt().toChar()
 
-                val size = parseOctal(header, 124, 12)
-                val type = header[156].toInt().toChar()
+            if (type == 'L' || type == 'K') {
+                val longName = readLongName(raw, size, buf)
+                if (type == 'L') pendingPath = longName
+                skipPadding(raw, size, buf)
+                continue
+            }
+            if (type == 'x') {
+                pendingPath = readExtendedPath(raw, size, buf)
+                skipPadding(raw, size, buf)
+                continue
+            }
 
-                if (size.toInt() == 0 && type == '\u0000') return
+            val name = parseString(header, 0, 100)
+            if (name.isEmpty() && pendingPath.isNullOrEmpty()) return
 
-                // Handle GNU long name (type 'L') and POSIX extended header (type 'x')
-                if (type == 'L' || type == 'K') {
-                    val longName = readLongName(raw, size, buf)
-                    if (type == 'L') pendingPath = longName
-                    skipPadding(raw, size, buf)
-                    continue
-                }
-                if (type == 'x') {
-                    pendingPath = readExtendedPath(raw, size, buf)
-                    skipPadding(raw, size, buf)
-                    continue
-                }
+            val resolvedName = pendingPath ?: name
+            pendingPath = null
 
-                val name = parseString(header, 0, 100)
-                if (name.isEmpty() && pendingPath.isNullOrEmpty()) return
+            val cleanName = if (resolvedName.startsWith("./")) resolvedName.removePrefix("./") else resolvedName
+            val dest = File(destDir, cleanName)
 
-                // Use pending path from extended header, or fall back to name field
-                val resolvedName = pendingPath ?: name
-                pendingPath = null
-
-                val cleanName = if (resolvedName.startsWith("./")) resolvedName.removePrefix("./") else resolvedName
-                val dest = File(destDir, cleanName)
-
-                if (type == '5' || type == '\u0000' && cleanName.endsWith("/")) {
-                    dest.mkdirs()
-                } else {
-                    dest.parentFile?.mkdirs()
-                    var remaining = size
-                    dest.outputStream().use { out ->
-                        while (remaining > 0) {
-                            val chunk = minOf(remaining.toInt(), buf.size)
-                            val read = raw.read(buf, 0, chunk)
-                            if (read < 0) throw IOException("Unexpected EOF in $cleanName")
-                            out.write(buf, 0, read)
-                            remaining -= read
-                        }
+            if (type == '5' || type == '\u0000' && cleanName.endsWith("/")) {
+                dest.mkdirs()
+            } else if (size > 0) {
+                dest.parentFile?.mkdirs()
+                var remaining = size
+                dest.outputStream().use { out ->
+                    while (remaining > 0) {
+                        val chunk = minOf(remaining.toInt(), buf.size)
+                        val read = raw.read(buf, 0, chunk)
+                        if (read < 0) throw IOException("Unexpected EOF in $cleanName")
+                        out.write(buf, 0, read)
+                        remaining -= read
                     }
                 }
-
-                skipPadding(raw, size, buf)
             }
-        } finally {
-            raw.close()
-            zip.close()
+
+            skipPadding(raw, size, buf)
+        }
+    }
+
+    private fun skipPadding(stream: java.io.InputStream, size: Long, buf: ByteArray) {
+        if (size > 0) {
+            val padLen = ((512 - (size % 512)) % 512).toInt()
+            var remaining = padLen
+            while (remaining > 0) {
+                val n = stream.read(buf, 0, minOf(remaining, buf.size))
+                if (n < 0) break
+                remaining -= n
+            }
         }
     }
 
@@ -104,7 +115,6 @@ object TarExtractor {
             offset += read
         }
         val text = String(data)
-        // Parse "NN path=VALUE\n" lines
         val pathPrefix = " path="
         var idx = text.indexOf(pathPrefix)
         if (idx >= 0) {
@@ -113,18 +123,6 @@ object TarExtractor {
             return if (end >= start) text.substring(start, end) else text.substring(start)
         }
         return null
-    }
-
-    private fun skipPadding(stream: java.io.InputStream, size: Long, buf: ByteArray) {
-        if (size > 0) {
-            val padLen = ((512 - (size % 512)) % 512).toInt()
-            var remaining = padLen
-            while (remaining > 0) {
-                val n = stream.read(buf, 0, minOf(remaining, buf.size))
-                if (n < 0) break
-                remaining -= n
-            }
-        }
     }
 
     private fun parseString(data: ByteArray, start: Int, maxLen: Int): String {

@@ -61,7 +61,7 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
     }
 
     JNI_CreateJavaVM_t JNI_CreateJavaVM = (JNI_CreateJavaVM_t)dlsym(libjvm, "JNI_CreateJavaVM");
-    if (!JNI_CreateJavaVM) { result = -2; goto cleanup; }
+    if (!JNI_CreateJavaVM) { LOGE("dlsym JNI_CreateJavaVM failed: %s", dlerror()); result = -2; goto cleanup; }
 
     char port_str[16];
     snprintf(port_str, sizeof(port_str), "%d", port);
@@ -125,6 +125,7 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
     if ((*jni_env)->ExceptionCheck(jni_env)) {
         LOGE("StepServerLauncher.main threw:");
         (*jni_env)->ExceptionDescribe(jni_env);
+        (*jni_env)->ExceptionClear(jni_env);
     }
     LOGI("StepServerLauncher.main returned");
     result = 0;

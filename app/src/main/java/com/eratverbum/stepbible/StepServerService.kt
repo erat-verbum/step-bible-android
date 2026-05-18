@@ -64,6 +64,11 @@ class StepServerService : Service() {
 
             ServerState.port = serverPort
 
+            if (!JVMStub.ensureLoaded()) {
+                Log.e(TAG, "Failed to load native library")
+                return
+            }
+
             Log.i(TAG, "Starting JVM...")
             val ret = JVMStub.startServer(
                 jreDir = jreDir.absolutePath,
@@ -210,6 +215,6 @@ class StepServerService : Service() {
 }
 
 object ServerState {
-    var port = 8989
-    var jvmStarted = false
+    @Volatile var port = 8989
+    @Volatile var jvmStarted = false
 }

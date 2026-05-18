@@ -213,11 +213,11 @@ phase_extract() {
         local cp
         cp=$(find "$ASSETS_DIR/step" -maxdepth 4 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
         # Compile StepServerLauncher and stub classes together
-        local src_files
-        src_files=$(find "$SCRIPT_DIR/step-bootstrap/src" -name '*.java' -type f 2>/dev/null | tr '\n' ' ')
-        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" $src_files 2>&1; then
+        # Compile StepServerLauncher (transitively compiles referenced stubs)
+        if ! "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
+            "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" 2>&1; then
             if "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null; then
-                info "StepServerLauncher compiled (${src_files//$'\n'})"
+                info "StepServerLauncher compiled"
             else
                 die "Failed to package bootstrap JAR"
             fi

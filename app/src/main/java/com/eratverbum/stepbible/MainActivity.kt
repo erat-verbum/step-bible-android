@@ -1,7 +1,6 @@
 package com.eratverbum.stepbible
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
@@ -26,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loadingText: TextView
     private val tabs = mutableListOf<TabInfo>()
     private var currentIndex = -1
+    private var closingTab = false
 
     private data class TabInfo(
         val webView: WebView,
@@ -59,9 +59,10 @@ class MainActivity : AppCompatActivity() {
         Thread {
             var retries = 0
             while (retries < 60) {
+                var conn: HttpURLConnection? = null
                 try {
                     val url = URL("http://127.0.0.1:${ServerState.port}/")
-                    val conn = url.openConnection() as HttpURLConnection
+                    conn = url.openConnection() as HttpURLConnection
                     conn.connectTimeout = 500
                     conn.readTimeout = 500
                     conn.connect()
@@ -69,8 +70,9 @@ class MainActivity : AppCompatActivity() {
                         runOnUiThread { onServerReady() }
                         return@Thread
                     }
-                    conn.disconnect()
                 } catch (_: Exception) {
+                } finally {
+                    conn?.disconnect()
                 }
                 Thread.sleep(1000)
                 retries++
@@ -100,8 +102,9 @@ class MainActivity : AppCompatActivity() {
                 isUserGesture: Boolean,
                 resultMsg: Message?
             ): Boolean {
+                val src = view ?: return false
                 val newTab = createConfiguredWebView()
-                val transport = view!!.WebViewTransport()
+                val transport = src.WebViewTransport()
                 transport.setWebView(newTab)
                 resultMsg?.obj = transport
                 resultMsg?.sendToTarget()
@@ -142,23 +145,22 @@ class MainActivity : AppCompatActivity() {
                             tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
                         }
                     }
-                    // Suppress REST API error popups (pre-existing STEP backend issues)
-                    view.evaluateJavascript("""
-                        (function(){
-                            window.stepInternalErrors=0;
-                            var origError=console.error;
-                            window.onerror=function(){return true};
-                            window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
-                        })();
-                    """.trimIndent(), null)
                 }
+                view?.evaluateJavascript("""
+                    (function(){
+                        window.stepInternalErrors=0;
+                        var origError=console.error;
+                        window.onerror=function(){return true};
+                        window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
+                    })();
+                """.trimIndent(), null)
             }
         }
         return wv
     }
 
     private fun addTabView(wv: WebView, url: String) {
-        val tabView = createTabView(tabs.size, url)
+        val tabView = createTabView(url)
 
         container.addView(wv)
         wv.visibility = View.GONE
@@ -167,34 +169,44 @@ class MainActivity : AppCompatActivity() {
         showTab(tabs.size - 1)
     }
 
-    private fun createTabView(index: Int, title: String): View {
+    private fun createTabView(title: String): View {
         val tabView = layoutInflater.inflate(R.layout.tab_item, tabBar, false)
         val titleView = tabView.findViewById<TextView>(R.id.tab_title)
         val closeBtn = tabView.findViewById<ImageView>(R.id.tab_close)
 
         titleView.text = if (title.isBlank()) "Loading..." else title
-        tabView.setOnClickListener { showTab(index) }
-        closeBtn.setOnClickListener { closeTab(index) }
+        tabView.setOnClickListener {
+            val idx = tabs.indexOfFirst { it.tabView == tabView }
+            if (idx >= 0) showTab(idx)
+        }
+        closeBtn.setOnClickListener {
+            if (closingTab) return@setOnClickListener
+            closingTab = true
+            try {
+                val idx = tabs.indexOfFirst { it.tabView == tabView }
+                if (idx >= 0) closeTab(idx)
+            } finally {
+                closingTab = false
+            }
+        }
 
         tabBar.addView(tabView)
         return tabView
     }
 
     private fun showTab(index: Int) {
+        if (index !in tabs.indices) return
         if (currentIndex >= 0 && currentIndex < tabs.size) {
             tabs[currentIndex].webView.visibility = View.GONE
         }
-        if (index in tabs.indices) {
-            tabs[index].webView.visibility = View.VISIBLE
-            currentIndex = index
-            updateTabBarSelection()
-            // Update title bar when switching tabs
-            tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
-        }
+        tabs[index].webView.visibility = View.VISIBLE
+        currentIndex = index
+        updateTabBarSelection()
+        tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
     }
 
     private fun closeTab(index: Int) {
-        if (tabs.size <= 1) return
+        if (index !in tabs.indices || tabs.size <= 1) return
         val tab = tabs[index]
         container.removeView(tab.webView)
         tab.webView.destroy()
