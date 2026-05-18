@@ -197,18 +197,19 @@ class MainActivity : AppCompatActivity() {
         }
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+                // Only intercept main-frame navigation, not sub-resources
+                if (request?.isForMainFrame != true) return false
                 val url = request?.url?.toString() ?: return false
                 val port = ServerState.port
-                if (!url.startsWith("http://127.0.0.1:$port") &&
-                    !url.startsWith("http://localhost:$port")) {
-                    return true
+                if (url.startsWith("http://127.0.0.1:$port") ||
+                    url.startsWith("http://localhost:$port")) {
+                    // Allow same-host navigation (with or without trailing slash/path)
+                    val rest = url.removePrefix("http://127.0.0.1:$port")
+                        .removePrefix("http://localhost:$port")
+                    if (rest.isEmpty() || rest[0] == '/' || rest[0] == '#' || rest[0] == '?')
+                        return false
                 }
-                val afterPort = url.removePrefix("http://127.0.0.1:$port")
-                    .removePrefix("http://localhost:$port")
-                if (afterPort.isNotEmpty() && afterPort[0] != '/' && afterPort[0] != '#' && afterPort[0] != '?') {
-                    return true
-                }
-                return false
+                return true
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
