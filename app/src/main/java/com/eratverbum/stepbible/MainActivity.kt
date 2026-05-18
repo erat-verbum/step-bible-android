@@ -62,8 +62,6 @@ class MainActivity : AppCompatActivity() {
         loadingText = findViewById(R.id.loading_text)
         retryButton = findViewById(R.id.btn_retry)
 
-        btnBack.isEnabled = false
-        btnForward.isEnabled = false
         btnBack.setOnClickListener { goBack() }
         btnForward.setOnClickListener { goForward() }
         btnBack.setOnLongClickListener { showHistory(true); true }
@@ -250,11 +248,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNavButtons() {
-        if (currentIndex in tabs.indices) {
-            val wv = tabs[currentIndex].webView
-            btnBack.isEnabled = wv.canGoBack()
-            btnForward.isEnabled = wv.canGoForward()
-        }
+        // Keep buttons enabled — disabled state hides click feedback.
+        // SPA history (history.pushState) isn't tracked by canGoBack(),
+        // so we rely on window.history.back()/forward() as fallback.
     }
 
     private fun showHistory(back: Boolean) {
@@ -291,10 +287,9 @@ class MainActivity : AppCompatActivity() {
         val wv = tabs[currentIndex].webView
         if (wv.canGoBack()) {
             wv.goBack()
-        } else {
-            wv.evaluateJavascript("window.history.back()", null)
+            return
         }
-        updateNavButtons()
+        wv.evaluateJavascript("window.history.back()", android.webkit.ValueCallback { _ -> })
     }
 
     private fun goForward() {
@@ -303,9 +298,11 @@ class MainActivity : AppCompatActivity() {
         if (wv.canGoForward()) {
             wv.goForward()
         } else {
-            wv.evaluateJavascript("window.history.forward()", null)
+            wv.evaluateJavascript(
+                "if(window.history.length>1)window.history.forward();",
+                null
+            )
         }
-        updateNavButtons()
     }
 
     private fun reloadCurrent() {
