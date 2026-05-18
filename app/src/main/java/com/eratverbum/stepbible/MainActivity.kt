@@ -142,6 +142,15 @@ class MainActivity : AppCompatActivity() {
                             tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
                         }
                     }
+                    // Suppress REST API error popups (pre-existing STEP backend issues)
+                    view.evaluateJavascript("""
+                        (function(){
+                            window.stepInternalErrors=0;
+                            var origError=console.error;
+                            window.onerror=function(){return true};
+                            window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
+                        })();
+                    """.trimIndent(), null)
                 }
             }
         }
