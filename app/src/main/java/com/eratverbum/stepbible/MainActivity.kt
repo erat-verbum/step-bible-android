@@ -264,22 +264,27 @@ class MainActivity : AppCompatActivity() {
         if (start >= end || size == 0) return
 
         val indices = mutableListOf<Int>()
-        val titles = mutableListOf<String>()
+        val items = mutableListOf<String>()
         for (i in start until end) {
             val item = list.getItemAtIndex(i) ?: continue
             indices.add(i)
-            titles.add(if (item.title.isNullOrBlank()) item.url else item.title)
+            val label = if (item.title.isNullOrBlank()) item.url else item.title
+            items.add(label)
         }
-        if (titles.isEmpty()) return
+        if (items.isEmpty()) return
 
-        android.app.AlertDialog.Builder(this)
-            .setTitle(if (back) "Back" else "Forward")
-            .setItems(titles.toTypedArray()) { _, which ->
-                val target = indices[which]
-                val steps = target - cur
-                wv.goBackOrForward(steps)
-            }
-            .show()
+        val anchor = if (back) btnBack else btnForward
+        val popup = android.widget.PopupMenu(this, anchor)
+        for ((i, label) in items.withIndex()) {
+            popup.menu.add(0, i, 0, label)
+        }
+        popup.setOnMenuItemClickListener { item ->
+            val target = indices[item.itemId]
+            val steps = target - cur
+            wv.goBackOrForward(steps)
+            true
+        }
+        popup.show()
     }
 
     private fun goBack() {
