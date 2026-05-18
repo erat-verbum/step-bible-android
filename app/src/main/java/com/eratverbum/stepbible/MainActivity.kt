@@ -138,8 +138,14 @@ class MainActivity : AppCompatActivity() {
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 val url = request?.url?.toString() ?: return false
-                if (!url.startsWith("http://127.0.0.1:${ServerState.port}/") &&
-                    !url.startsWith("http://localhost:${ServerState.port}/")) {
+                val port = ServerState.port
+                if (!url.startsWith("http://127.0.0.1:$port") &&
+                    !url.startsWith("http://localhost:$port")) {
+                    return true
+                }
+                val afterPort = url.removePrefix("http://127.0.0.1:$port")
+                    .removePrefix("http://localhost:$port")
+                if (afterPort.isNotEmpty() && afterPort[0] != '/' && afterPort[0] != '#' && afterPort[0] != '?') {
                     return true // block external URLs
                 }
                 return false

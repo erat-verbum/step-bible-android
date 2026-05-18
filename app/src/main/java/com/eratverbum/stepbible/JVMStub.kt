@@ -1,7 +1,7 @@
 package com.eratverbum.stepbible
 
 object JVMStub {
-    private var loaded = false
+    @Volatile private var loaded = false
 
     fun ensureLoaded(): Boolean {
         if (loaded) return true

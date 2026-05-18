@@ -56,18 +56,18 @@ object TarExtractor {
             pendingPath = null
 
             val cleanName = if (resolvedName.startsWith("./")) resolvedName.removePrefix("./") else resolvedName
-            if (cleanName.contains("..") || cleanName.startsWith("/"))
+            if (cleanName.split("/").any { it == ".." } || cleanName.startsWith("/"))
                 throw IOException("Invalid tar entry path: $cleanName")
             val dest = File(destDir, cleanName)
 
             if (type == '5' || type == '\u0000' && cleanName.endsWith("/")) {
                 dest.mkdirs()
-            } else if (size > 0) {
+            } else {
                 dest.parentFile?.mkdirs()
                 var remaining = size
                 dest.outputStream().use { out ->
                     while (remaining > 0) {
-                        val chunk = minOf(remaining.toInt(), buf.size)
+                        val chunk = minOf(remaining, buf.size.toLong()).toInt()
                         val read = raw.read(buf, 0, chunk)
                         if (read < 0) throw IOException("Unexpected EOF in $cleanName")
                         out.write(buf, 0, read)

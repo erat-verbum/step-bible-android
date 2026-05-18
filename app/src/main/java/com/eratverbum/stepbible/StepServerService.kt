@@ -46,34 +46,38 @@ class StepServerService : Service() {
         super.onDestroy()
     }
 
-    private val extractionMarker = File(filesDir, ".extraction-complete")
-    private val versionMarker = File(filesDir, ".app-version")
-
-    private fun needExtraction(): Boolean {
-        if (!extractionMarker.exists()) return true
-        val storedVersion = try { versionMarker.readText().trim().toInt() } catch (_: Exception) { 0 }
+    private fun needExtraction(appDir: File): Boolean {
+        val marker = File(appDir, ".extraction-complete")
+        if (!marker.exists()) return true
+        val verFile = File(appDir, ".app-version")
+        val storedVersion = try { verFile.readText().trim().toInt() } catch (_: Exception) { 0 }
         val currentVersion = try {
             packageManager.getPackageInfo(packageName, 0).versionCode
         } catch (_: Exception) { 0 }
         return storedVersion != currentVersion
     }
 
+    private fun markExtractionComplete(appDir: File) {
+        try {
+            File(appDir, ".extraction-complete").createNewFile()
+            File(appDir, ".app-version").writeText(
+                packageManager.getPackageInfo(packageName, 0).versionCode.toString())
+        } catch (_: Exception) {}
+    }
+
     private fun setupAndStartServer() {
         var retries = 0
         while (retries < 2) {
-            val appDir = filesDir
+            val appDir = filesDir ?: run { Log.e(TAG, "filesDir is null"); return }
             val jreDir = File(appDir, "jre")
             val stepDir = File(appDir, "step")
 
-            if (needExtraction()) {
+            if (needExtraction(appDir)) {
                 try {
                     extractAssets(appDir)
-                    extractionMarker.createNewFile()
-                    versionMarker.writeText(
-                        packageManager.getPackageInfo(packageName, 0).versionCode.toString())
+                    markExtractionComplete(appDir)
                 } catch (e: Exception) {
                     Log.e(TAG, "Extraction failed", e)
-                    extractionMarker.delete()
                     return
                 }
             }
@@ -89,7 +93,6 @@ class StepServerService : Service() {
             }
 
             ServerState.jvmStarted = true
-            ServerState.port = serverPort
 
             Log.i(TAG, "Starting JVM...")
             val ret = JVMStub.startServer(
@@ -101,6 +104,7 @@ class StepServerService : Service() {
 
             if (ret == 0) {
                 Log.i(TAG, "JVM exited normally")
+                ServerState.jvmStarted = false
                 return
             }
             Log.e(TAG, "JVM exited with error: $ret (attempt ${retries + 1})")

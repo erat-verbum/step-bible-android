@@ -114,6 +114,20 @@ public class StepServerLauncher {
         }
     }
 
+    private static void copyRecursive(File src, File dst) throws Exception {
+        if (src.isDirectory()) {
+            dst.mkdirs();
+            File[] children = src.listFiles();
+            if (children != null) {
+                for (File c : children) copyRecursive(c, new File(dst, c.getName()));
+            }
+        } else {
+            dst.getParentFile().mkdirs();
+            java.nio.file.Files.copy(src.toPath(), dst.toPath(),
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     private static void linkDir(File link, File target) throws Exception {
         if (!target.exists()) return;
         link.getParentFile().mkdirs();
@@ -125,7 +139,12 @@ public class StepServerLauncher {
                 deleteRecursive(link);
             }
         }
-        Files.createSymbolicLink(link.toPath(), target.toPath().toAbsolutePath());
+        try {
+            Files.createSymbolicLink(link.toPath(), target.toPath().toAbsolutePath());
+        } catch (Exception e) {
+            System.err.println("Symlink failed, copying: " + e.getMessage());
+            copyRecursive(target, link);
+        }
     }
 
     private static void deleteRecursive(File f) {
