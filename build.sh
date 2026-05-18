@@ -32,7 +32,7 @@ info()  { echo "  -> $*"; }
 die()   { echo "ERROR: $*" >&2; exit 1; }
 
 clean() {
-    rm -rf "$CACHE_DIR" "$ASSETS_DIR/jre" "$ASSETS_DIR/step"
+    rm -rf "$CACHE_DIR" "$ASSETS_DIR/jre" "$ASSETS_DIR/step" "$ASSETS_DIR/step.tar.gz"
 }
 
 detect_step_version() {
@@ -214,7 +214,7 @@ phase_extract() {
         cp=$(find "$ASSETS_DIR/step" -maxdepth 4 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
         # Compile StepServerLauncher and stub classes together
         # Compile StepServerLauncher (transitively compiles referenced stubs)
-        if ! "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
+        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
             "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" 2>&1; then
             if "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null; then
                 info "StepServerLauncher compiled"

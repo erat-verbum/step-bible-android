@@ -47,8 +47,6 @@ class StepServerService : Service() {
     }
 
     private fun setupAndStartServer() {
-        ServerState.jvmStarted = true
-
         var retries = 0
         while (retries < 2) {
             val appDir = filesDir
@@ -68,6 +66,8 @@ class StepServerService : Service() {
                 Log.e(TAG, "Failed to load native library")
                 return
             }
+
+            ServerState.jvmStarted = true
 
             Log.i(TAG, "Starting JVM...")
             val ret = JVMStub.startServer(

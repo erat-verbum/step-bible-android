@@ -93,25 +93,27 @@ class MainActivity : AppCompatActivity() {
         loadingSpinner.visibility = View.GONE
     }
 
+    private val chromeClient = object : WebChromeClient() {
+        override fun onCreateWindow(
+            view: WebView?,
+            isDialog: Boolean,
+            isUserGesture: Boolean,
+            resultMsg: Message?
+        ): Boolean {
+            val src = view ?: return false
+            val newTab = createConfiguredWebView()
+            newTab.webChromeClient = this
+            val transport = src.WebViewTransport()
+            transport.setWebView(newTab)
+            resultMsg?.obj = transport
+            resultMsg?.sendToTarget()
+            addTabView(newTab, "")
+            return true
+        }
+    }
+
     private fun createTab(url: String): WebView {
         val wv = createConfiguredWebView()
-        val chromeClient = object : WebChromeClient() {
-            override fun onCreateWindow(
-                view: WebView?,
-                isDialog: Boolean,
-                isUserGesture: Boolean,
-                resultMsg: Message?
-            ): Boolean {
-                val src = view ?: return false
-                val newTab = createConfiguredWebView()
-                val transport = src.WebViewTransport()
-                transport.setWebView(newTab)
-                resultMsg?.obj = transport
-                resultMsg?.sendToTarget()
-                addTabView(newTab, "")
-                return true
-            }
-        }
         wv.webChromeClient = chromeClient
 
         addTabView(wv, url)
@@ -213,7 +215,7 @@ class MainActivity : AppCompatActivity() {
         tabBar.removeView(tab.tabView)
         tabs.removeAt(index)
         val newIndex = when {
-            currentIndex <= index && currentIndex > 0 -> currentIndex - 1
+            currentIndex > index -> currentIndex - 1
             currentIndex >= tabs.size -> tabs.size - 1
             else -> currentIndex
         }
