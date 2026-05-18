@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnForward: ImageButton
     private lateinit var btnReload: ImageButton
     private lateinit var btnNewTab: ImageButton
+    private lateinit var btnTabOverview: ImageButton
     private lateinit var loadingSpinner: ProgressBar
     private lateinit var loadingText: TextView
     private lateinit var retryButton: Button
@@ -58,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         btnForward = findViewById(R.id.btn_forward)
         btnReload = findViewById(R.id.btn_reload)
         btnNewTab = findViewById(R.id.btn_new_tab)
+        btnTabOverview = findViewById(R.id.btn_tab_overview)
         loadingSpinner = findViewById(R.id.loading_spinner)
         loadingText = findViewById(R.id.loading_text)
         retryButton = findViewById(R.id.btn_retry)
@@ -68,6 +70,7 @@ class MainActivity : AppCompatActivity() {
         btnForward.setOnLongClickListener { showHistory(false); true }
         btnReload.setOnClickListener { reloadCurrent() }
         btnNewTab.setOnClickListener { createTab("http://127.0.0.1:${ServerState.port}/") }
+        btnTabOverview.setOnClickListener { showTabOverview() }
         retryButton.setOnClickListener { retry() }
 
         startServerService()
@@ -251,6 +254,22 @@ class MainActivity : AppCompatActivity() {
         // Keep buttons enabled — disabled state hides click feedback.
         // SPA history (history.pushState) isn't tracked by canGoBack(),
         // so we rely on window.history.back()/forward() as fallback.
+    }
+
+    private fun showTabOverview() {
+        if (tabs.isEmpty()) return
+        val items = tabs.mapIndexed { i, t -> "${i + 1}. ${if (t.title.isBlank()) "STEP Bible" else t.title}" }
+        val checked = currentIndex
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Tabs (${tabs.size})")
+            .setSingleChoiceItems(items.toTypedArray(), checked) { dialog, which ->
+                dialog.dismiss()
+                showTab(which)
+            }
+            .setNeutralButton("Close current") { _, _ -> closeTab(currentIndex) }
+            .setPositiveButton("Done", null)
+            .show()
     }
 
     private fun showHistory(back: Boolean) {

@@ -53,6 +53,15 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="New tab"
             android:scaleType="center" />
+
+        <ImageButton
+            android:id="@+id/btn_tab_overview"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Tab overview"
+            android:scaleType="center" />
     </LinearLayout>
 
     <HorizontalScrollView
