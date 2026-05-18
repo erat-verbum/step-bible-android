@@ -43,6 +43,7 @@ die()   { echo "ERROR: $*" >&2; exit 1; }
 
 clean() {
     rm -rf "$CACHE_DIR" "$ASSETS_DIR/jre" "$ASSETS_DIR/step" "$ASSETS_DIR/step.tar.gz"
+    rm -f "$SCRIPT_DIR/.extracted" "$SCRIPT_DIR/.build-vars"
 }
 
 detect_step_version() {
@@ -228,7 +229,9 @@ phase_extract() {
         cp=$(find "$ASSETS_DIR/step" -maxdepth 4 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
         # Compile StepServerLauncher and stub classes together
         "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
-            "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" && \
+            "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" \
+            "$SCRIPT_DIR/step-bootstrap/src/com/tyndalehouse/step/models/timeline/simile/SimileTimelineTranslatorImpl.java" \
+            "$SCRIPT_DIR/step-bootstrap/src/com/tyndalehouse/step/rest/controllers/InternationalJsonController.java" && \
         "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null && \
         info "StepServerLauncher compiled" || \
         die "Failed to compile StepServerLauncher (STEP server cannot start)"

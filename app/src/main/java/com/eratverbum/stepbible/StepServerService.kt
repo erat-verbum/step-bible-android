@@ -166,14 +166,26 @@ class StepServerService : Service() {
         if (!jswordSource.exists()) return
         jswordHome.mkdirs()
         try {
+            // Try symlink first (fails on API 28+ for non-system apps),
+            // fall back to directory-level copy
+            val useSymlinks = try {
+                val test = File(jswordHome, ".symtest")
+                java.nio.file.Files.createSymbolicLink(test.toPath(), jswordHome.toPath())
+                java.nio.file.Files.delete(test.toPath())
+                true
+            } catch (_: Exception) { false }
+
+            // modules/ (SWORD data files, needed by JSword)
             val modsLink = File(jswordHome, "modules")
             val modsSword = File(swordHome, "modules")
             if (modsSword.exists()) {
-                if (!modsLink.exists())
+                if (useSymlinks && !modsLink.exists())
                     java.nio.file.Files.createSymbolicLink(
                         modsLink.toPath(), modsSword.toPath().toAbsolutePath())
-                Log.i(TAG, "Linked modules to jsword")
+                Log.i(TAG, if (useSymlinks) "Linked modules to jsword" else "Modules already at sword path")
             }
+
+            // Copy mods.d/ config files
             val modsDest = File(jswordHome, "mods.d")
             val modsSource = File(swordHome, "mods.d")
             if (modsSource.exists()) {
@@ -184,23 +196,27 @@ class StepServerService : Service() {
                 }
                 Log.i(TAG, "Copied mods.d to jsword")
             }
+
+            // lucene/Sword modules (Lucene indexes - from jsword data)
             val swordLink = File(jswordHome, "lucene/Sword")
             val swordSource = File(jswordSource, "lucene/Sword")
             if (swordSource.exists()) {
                 swordLink.parentFile?.mkdirs()
-                if (!swordLink.exists())
+                if (useSymlinks && !swordLink.exists())
                     java.nio.file.Files.createSymbolicLink(
                         swordLink.toPath(), swordSource.toPath().toAbsolutePath())
-                Log.i(TAG, "Linked lucene/Sword to jsword")
+                Log.i(TAG, if (useSymlinks) "Linked lucene/Sword to jsword" else "Lucene/Sword at original path")
             }
+
+            // step/ entities
             val stepLink = File(jswordHome, "step/entities")
             val stepSource = File(jswordSource, "step/entities")
             if (stepSource.exists()) {
                 stepLink.parentFile?.mkdirs()
-                if (!stepLink.exists())
+                if (useSymlinks && !stepLink.exists())
                     java.nio.file.Files.createSymbolicLink(
                         stepLink.toPath(), stepSource.toPath().toAbsolutePath())
-                Log.i(TAG, "Linked step/entities to jsword")
+                Log.i(TAG, if (useSymlinks) "Linked step/entities to jsword" else "Step/entities at original path")
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to link jsword data", e)

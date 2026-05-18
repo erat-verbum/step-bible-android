@@ -78,6 +78,15 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
     char opt_tmpdir[1024];
     snprintf(opt_tmpdir, sizeof(opt_tmpdir), "-Djava.io.tmpdir=%s/tmp", c_jre_dir);
 
+    char opt_userhome[1024];
+    {
+        char tmp[1024];
+        snprintf(tmp, sizeof(tmp), "%s", c_jre_dir);
+        char *p = strrchr(tmp, '/');
+        if (p && strcmp(p, "/jre") == 0) *p = '\0';
+        snprintf(opt_userhome, sizeof(opt_userhome), "-Duser.home=%s", tmp);
+    }
+
     JavaVMOption options[14] = {
         { opt_classpath, NULL },
         { opt_war_path, NULL },
@@ -87,7 +96,7 @@ Java_com_eratverbum_stepbible_JVMStub_startServer(
         { "-Djava.locale.providers=COMPAT,SPI", NULL },
         { "-Djava.awt.headless=true", NULL },
         { opt_tmpdir, NULL },
-        { "-Duser.home=/data/data/com.eratverbum.stepbible/files", NULL },
+        { opt_userhome, NULL },
         { "-Djava.security.manager=allow", NULL },
         { "--add-opens=java.base/java.lang=ALL-UNNAMED", NULL },
         { "--add-opens=java.base/java.io=ALL-UNNAMED", NULL },

@@ -132,7 +132,6 @@ class MainActivity : AppCompatActivity() {
             setSupportMultipleWindows(true)
             javaScriptCanOpenWindowsAutomatically = true
             domStorageEnabled = true
-            allowFileAccess = true
             builtInZoomControls = true
             displayZoomControls = false
         }

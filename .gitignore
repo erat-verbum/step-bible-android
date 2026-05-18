@@ -11,6 +11,7 @@
 .gradle
 .gradle/
 .kotlin/
+.kotlin-cache/
 .idea/
 app/src/main/assets/
 app/src/main/jniLibs/
