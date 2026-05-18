@@ -204,18 +204,20 @@ phase_extract() {
            "$ASSETS_DIR/step/logs" "$ASSETS_DIR/step/runStep.sh" \
            "$ASSETS_DIR/step/post-install.sh" 2>/dev/null || true
 
-    # --- Compile StepServerLauncher bootstrap JAR ---
+    # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
     if [[ -n "$jdk_home" ]]; then
-        local boot_src="$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java"
         local boot_dir="$SCRIPT_DIR/build-cache/step-bootstrap"
         rm -rf "$boot_dir" && mkdir -p "$boot_dir"
         local cp
-        cp=$(find "$ASSETS_DIR/step" -maxdepth 3 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
-        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" "$boot_src" 2>&1; then
+        cp=$(find "$ASSETS_DIR/step" -maxdepth 4 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
+        # Compile StepServerLauncher and stub classes together
+        local src_files
+        src_files=$(find "$SCRIPT_DIR/step-bootstrap/src" -name '*.java' -type f 2>/dev/null | tr '\n' ' ')
+        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" $src_files 2>&1; then
             if "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null; then
-                info "StepServerLauncher compiled"
+                info "StepServerLauncher compiled (${src_files//$'\n'})"
             else
                 die "Failed to package bootstrap JAR"
             fi
@@ -257,7 +259,7 @@ phase_extract() {
     # --- Archive STEP data into single tar.gz for fast first-launch extraction ---
     info "Archiving STEP data into step.tar.gz..."
     cd "$ASSETS_DIR"
-    tar --format=posix -czf "step.tar.gz" step/ 2>/dev/null && \
+    tar --format=gnu -czf "step.tar.gz" step/ 2>/dev/null && \
         rm -rf step/ && \
         info "step.tar.gz: $(du -h step.tar.gz | cut -f1)" || \
         info "Warning: failed to create tar.gz, keeping individual files"

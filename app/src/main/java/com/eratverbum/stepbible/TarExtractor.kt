@@ -34,7 +34,13 @@ object TarExtractor {
 
                 if (size.toInt() == 0 && type == '\u0000') return
 
-                // Handle POSIX extended header (stores real path)
+                // Handle GNU long name (type 'L') and POSIX extended header (type 'x')
+                if (type == 'L' || type == 'K') {
+                    val longName = readLongName(raw, size, buf)
+                    if (type == 'L') pendingPath = longName
+                    skipPadding(raw, size, buf)
+                    continue
+                }
                 if (type == 'x') {
                     pendingPath = readExtendedPath(raw, size, buf)
                     skipPadding(raw, size, buf)
@@ -73,6 +79,18 @@ object TarExtractor {
             raw.close()
             zip.close()
         }
+    }
+
+    private fun readLongName(raw: java.io.InputStream, size: Long, buf: ByteArray): String? {
+        if (size <= 0 || size > 4096) return null
+        val data = ByteArray(size.toInt())
+        var offset = 0
+        while (offset < data.size) {
+            val read = raw.read(data, offset, data.size - offset)
+            if (read < 0) return null
+            offset += read
+        }
+        return String(data).trimEnd('\u0000')
     }
 
     private fun readExtendedPath(raw: java.io.InputStream, size: Long, buf: ByteArray): String? {

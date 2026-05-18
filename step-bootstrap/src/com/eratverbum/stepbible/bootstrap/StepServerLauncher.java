@@ -5,6 +5,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.io.PrintStream;
 import java.io.FileOutputStream;
+import java.io.File;
+import java.nio.file.Files;
 
 public class StepServerLauncher {
     public static void main(String[] args) {
@@ -35,6 +37,15 @@ public class StepServerLauncher {
                 }
             }
 
+            // Link JSword data before server starts
+            // Then re-link after a delay (JSword may delete symlinks during init)
+            linkJswordData(home);
+            final String homeFinal = home;
+            new Thread(() -> {
+                try { Thread.sleep(5000); } catch (Exception e) {}
+                linkJswordData(homeFinal);
+            }).start();
+
             Method start = STEPTomcatServer.class.getDeclaredMethod("start");
             start.setAccessible(true);
 
@@ -62,6 +73,69 @@ public class StepServerLauncher {
                 ps.close();
             } catch (Exception ignored) {}
         }
+    }
+
+    private static void linkJswordData(String home) {
+        try {
+            File jswordHome = new File(home, ".jsword");
+            File jswordSource = new File(home, "step/homes/jsword");
+            File swordSource = new File(home, "step/homes/sword");
+            if (!jswordSource.exists()) return;
+            jswordHome.mkdirs();
+
+            // modules/ -> step/homes/sword/modules/
+            linkDir(new File(jswordHome, "modules"), new File(swordSource, "modules"));
+
+            // mods.d/ - copy conf files from sword data
+            File modsDest = new File(jswordHome, "mods.d");
+            File modsSource = new File(swordSource, "mods.d");
+            if (modsSource.exists()) {
+                modsDest.mkdirs();
+                File[] confs = modsSource.listFiles((d, n) -> n.endsWith(".conf"));
+                if (confs != null) {
+                    for (File conf : confs) {
+                        File dest = new File(modsDest, conf.getName());
+                        if (!dest.exists()) {
+                            Files.copy(conf.toPath(), dest.toPath());
+                        }
+                    }
+                }
+                System.err.println("Copied mods.d to jsword");
+            }
+
+            // lucene/Sword/ -> step/homes/jsword/lucene/Sword/
+            linkDir(new File(jswordHome, "lucene/Sword"), new File(jswordSource, "lucene/Sword"));
+
+            // step/entities/ -> step/homes/jsword/step/entities/
+            linkDir(new File(jswordHome, "step/entities"), new File(jswordSource, "step/entities"));
+
+        } catch (Exception e) {
+            System.err.println("Failed to link jsword data: " + e.getMessage());
+        }
+    }
+
+    private static void linkDir(File link, File target) throws Exception {
+        if (!target.exists()) return;
+        link.getParentFile().mkdirs();
+        // Remove if exists (JSword may have created it)
+        if (link.exists()) {
+            if (Files.isSymbolicLink(link.toPath())) {
+                Files.delete(link.toPath());
+            } else {
+                deleteRecursive(link);
+            }
+        }
+        Files.createSymbolicLink(link.toPath(), target.toPath().toAbsolutePath());
+    }
+
+    private static void deleteRecursive(File f) {
+        if (f.isDirectory()) {
+            File[] children = f.listFiles();
+            if (children != null) {
+                for (File c : children) deleteRecursive(c);
+            }
+        }
+        f.delete();
     }
 
     private static void startTomcatDirectly() throws Exception {
