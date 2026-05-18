@@ -207,23 +207,20 @@ phase_extract() {
     # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
-    if [[ -n "$jdk_home" ]]; then
+    if [[ -z "$jdk_home" ]]; then
+        info "JDK 21 not found, skipping bootstrap compilation"
+        info "Run './build.sh setup' first or use './build.sh build'"
+    else
         local boot_dir="$SCRIPT_DIR/build-cache/step-bootstrap"
         rm -rf "$boot_dir" && mkdir -p "$boot_dir"
         local cp
         cp=$(find "$ASSETS_DIR/step" -maxdepth 4 -name '*.jar' -type f 2>/dev/null | tr '\n' ':')
         # Compile StepServerLauncher and stub classes together
-        # Compile StepServerLauncher (transitively compiles referenced stubs)
-        if "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
-            "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" 2>&1; then
-            if "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null; then
-                info "StepServerLauncher compiled"
-            else
-                die "Failed to package bootstrap JAR"
-            fi
-        else
-            die "Failed to compile StepServerLauncher (STEP server cannot start)"
-        fi
+        "$jdk_home/bin/javac" --release 17 -cp "$cp" -d "$boot_dir" \
+            "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" && \
+        "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null && \
+        info "StepServerLauncher compiled" || \
+        die "Failed to compile StepServerLauncher (STEP server cannot start)"
         rm -rf "$boot_dir"
     fi
 

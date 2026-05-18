@@ -1,13 +1,10 @@
 package com.eratverbum.stepbible
 
-import android.util.Log
 import java.io.File
 import java.io.IOException
 import java.util.zip.ZipFile
 
 object TarExtractor {
-
-    private const val TAG = "TarExtr"
 
     fun extractFromApk(apkPath: String, entryName: String, destDir: File) {
         ZipFile(apkPath).use { zip ->

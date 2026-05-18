@@ -68,6 +68,7 @@ class StepServerService : Service() {
             }
 
             ServerState.jvmStarted = true
+            ServerState.port = serverPort
 
             Log.i(TAG, "Starting JVM...")
             val ret = JVMStub.startServer(
@@ -85,6 +86,8 @@ class StepServerService : Service() {
             retries++
             if (retries < 2) Thread.sleep(1000)
         }
+        // All retries exhausted — allow service restart to retry
+        ServerState.jvmStarted = false
     }
 
     private fun buildClasspath(stepDir: File): String {
