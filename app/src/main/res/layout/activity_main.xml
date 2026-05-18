@@ -55,14 +55,21 @@
             android:scaleType="center" />
     </LinearLayout>
 
-    <LinearLayout
-        android:id="@+id/tab_bar"
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="36dp"
-        android:orientation="horizontal"
-        android:background="?attr/colorPrimaryDark"
-        android:gravity="center_vertical"
-        android:visibility="gone" />
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/tab_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:background="?attr/colorPrimaryDark"
+            android:gravity="center_vertical"
+            android:visibility="gone" />
+
+    </HorizontalScrollView>
 
     <FrameLayout
         android:id="@+id/webview_container"

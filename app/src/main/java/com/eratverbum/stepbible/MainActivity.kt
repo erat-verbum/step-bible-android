@@ -62,6 +62,8 @@ class MainActivity : AppCompatActivity() {
         loadingText = findViewById(R.id.loading_text)
         retryButton = findViewById(R.id.btn_retry)
 
+        btnBack.isEnabled = false
+        btnForward.isEnabled = false
         btnBack.setOnClickListener { goBack() }
         btnForward.setOnClickListener { goForward() }
         btnReload.setOnClickListener { reloadCurrent() }
@@ -255,12 +257,14 @@ class MainActivity : AppCompatActivity() {
     private fun goBack() {
         if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoBack()) {
             tabs[currentIndex].webView.goBack()
+            updateNavButtons()
         }
     }
 
     private fun goForward() {
         if (currentIndex in tabs.indices && tabs[currentIndex].webView.canGoForward()) {
             tabs[currentIndex].webView.goForward()
+            updateNavButtons()
         }
     }
 
