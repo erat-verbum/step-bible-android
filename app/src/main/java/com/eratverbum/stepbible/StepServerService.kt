@@ -22,6 +22,8 @@ class StepServerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (ServerState.jvmStarted) return START_STICKY
+
         val notification = buildNotification()
         startForeground(1, notification)
 
@@ -45,6 +47,8 @@ class StepServerService : Service() {
     }
 
     private fun setupAndStartServer() {
+        ServerState.jvmStarted = true
+
         val appDir = filesDir
         val jreDir = File(appDir, "jre")
         val stepDir = File(appDir, "step")
@@ -96,11 +100,8 @@ class StepServerService : Service() {
         val jreDir = File(appDir, "jre")
         val jreAbi = detectJreAbi()
 
-        try {
-            val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
-            val zip = ZipFile(apkPath)
-
-            // Extract JRE files individually
+        val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
+        ZipFile(apkPath).use { zip ->
             val prefixJre = "assets/jre/$jreAbi/"
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
@@ -115,18 +116,13 @@ class StepServerService : Service() {
                     }
                 }
             }
-            zip.close()
-
-            // Extract STEP data from tar archive (aapt strips .gz from assets)
-            Log.i(TAG, "Extracting step.tar...")
-            TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
-            linkJswordData(appDir, File(appDir, "step"))
-
-            Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
-        } catch (e: Exception) {
-            Log.e(TAG, "Extraction failed", e)
-            throw e
         }
+
+        Log.i(TAG, "Extracting step.tar...")
+        TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
+        linkJswordData(appDir, File(appDir, "step"))
+
+        Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
     }
 
     private fun linkJswordData(appDir: File, stepDir: File) {
@@ -136,7 +132,6 @@ class StepServerService : Service() {
         if (!jswordSource.exists()) return
         jswordHome.mkdirs()
         try {
-            // Symlink modules/ (SWORD data files, needed by JSword for Bible text)
             val modsLink = File(jswordHome, "modules")
             val modsSword = File(swordHome, "modules")
             if (modsSword.exists()) {
@@ -145,7 +140,6 @@ class StepServerService : Service() {
                         modsLink.toPath(), modsSword.toPath().toAbsolutePath())
                 Log.i(TAG, "Linked modules to jsword")
             }
-            // Copy mods.d/ (module config .conf files, needed by JSword)
             val modsDest = File(jswordHome, "mods.d")
             val modsSource = File(swordHome, "mods.d")
             if (modsSource.exists()) {
@@ -156,7 +150,6 @@ class StepServerService : Service() {
                 }
                 Log.i(TAG, "Copied mods.d to jsword")
             }
-            // Symlink lucene/Sword modules (Lucene search indexes)
             val swordLink = File(jswordHome, "lucene/Sword")
             val swordSource = File(jswordSource, "lucene/Sword")
             if (swordSource.exists()) {
@@ -166,7 +159,6 @@ class StepServerService : Service() {
                         swordLink.toPath(), swordSource.toPath().toAbsolutePath())
                 Log.i(TAG, "Linked lucene/Sword to jsword")
             }
-            // Symlink step/ entities
             val stepLink = File(jswordHome, "step/entities")
             val stepSource = File(jswordSource, "step/entities")
             if (stepSource.exists()) {
@@ -214,4 +206,5 @@ class StepServerService : Service() {
 
 object ServerState {
     var port = 8989
+    var jvmStarted = false
 }
