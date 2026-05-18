@@ -2,7 +2,6 @@ package com.eratverbum.stepbible
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Message
@@ -31,7 +30,7 @@ class MainActivity : AppCompatActivity() {
     private data class TabInfo(
         val webView: WebView,
         val tabView: View,
-        val title: String
+        var title: String
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,6 +92,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createTab(url: String): WebView {
+        val wv = createConfiguredWebView()
+        val chromeClient = object : WebChromeClient() {
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: Message?
+            ): Boolean {
+                val newTab = createConfiguredWebView()
+                val transport = view!!.WebViewTransport()
+                transport.setWebView(newTab)
+                resultMsg?.obj = transport
+                resultMsg?.sendToTarget()
+                addTabView(newTab, "")
+                return true
+            }
+        }
+        wv.webChromeClient = chromeClient
+
+        addTabView(wv, url)
+        wv.loadUrl(url)
+        return wv
+    }
+
+    private fun createConfiguredWebView(): WebView {
         val wv = WebView(this)
         wv.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
@@ -108,46 +132,20 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
         }
         wv.webViewClient = object : WebViewClient() {
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                val idx = tabs.indexOfFirst { it.webView == view }
-                if (idx >= 0) updateTabTitle(idx, url ?: "")
+            override fun onPageFinished(view: WebView?, url: String?) {
+                if (view != null) {
+                    val idx = tabs.indexOfFirst { it.webView == view }
+                    if (idx >= 0) {
+                        val title = view.title ?: ""
+                        tabs[idx].title = title
+                        if (idx == currentIndex) {
+                            tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
+                        }
+                    }
+                }
             }
         }
-        wv.webChromeClient = createChromeClient()
-
-        addTabView(wv, url)
-        wv.loadUrl(url)
         return wv
-    }
-
-    private fun createChromeClient() = object : WebChromeClient() {
-        override fun onCreateWindow(
-            view: WebView?,
-            isDialog: Boolean,
-            isUserGesture: Boolean,
-            resultMsg: Message?
-        ): Boolean {
-            val newTab = WebView(this@MainActivity)
-            newTab.layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            newTab.settings.apply {
-                javaScriptEnabled = true
-                setSupportMultipleWindows(true)
-                javaScriptCanOpenWindowsAutomatically = true
-                domStorageEnabled = true
-                allowFileAccess = true
-            }
-
-            val transport = view!!.WebViewTransport()
-            transport.setWebView(newTab)
-            resultMsg?.obj = transport
-            resultMsg?.sendToTarget()
-
-            addTabView(newTab, "")
-            return true
-        }
     }
 
     private fun addTabView(wv: WebView, url: String) {
@@ -181,6 +179,8 @@ class MainActivity : AppCompatActivity() {
             tabs[index].webView.visibility = View.VISIBLE
             currentIndex = index
             updateTabBarSelection()
+            // Update title bar when switching tabs
+            tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
         }
     }
 
@@ -203,14 +203,6 @@ class MainActivity : AppCompatActivity() {
         for (i in tabs.indices) {
             tabs[i].tabView.alpha = if (i == currentIndex) 1.0f else 0.6f
         }
-    }
-
-    private fun updateTabTitle(index: Int, url: String) {
-        val tab = tabs.getOrNull(index) ?: return
-        val title = try {
-            Uri.parse(url).host?.replace("www.", "") ?: url
-        } catch (_: Exception) { url }
-        tab.tabView.findViewById<TextView>(R.id.tab_title).text = title
     }
 
     override fun onBackPressed() {
