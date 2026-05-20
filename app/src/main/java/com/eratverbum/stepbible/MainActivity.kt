@@ -61,6 +61,9 @@ class MainActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            WebView.enableSlowWholeDocumentDraw()
+        }
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -328,7 +331,7 @@ class MainActivity : AppCompatActivity() {
                 title.text = if (tab.title.isBlank()) "STEP Bible" else tab.title
                 title.isSelected = pos == currentIndex
 
-                // Generate thumbnail from visible viewport at scroll (0,0)
+                // Generate thumbnail from full page content
                 try {
                     val wv = tab.webView
                     val wasGone = wv.visibility == View.GONE
@@ -341,22 +344,17 @@ class MainActivity : AppCompatActivity() {
                         wv.layout(0, 0, container.width, container.height)
                     }
 
-                    val w = wv.width
-                    val h = wv.height
-                    if (w <= 0 || h <= 0) throw Exception("no dimensions")
+                    if (wv.width <= 0) throw Exception("no width")
 
-                    val sx = thumbWidth.toFloat() / w.toFloat()
-                    val sy = thumbHeight.toFloat() / h.toFloat()
+                    val fullH = (wv.contentHeight * wv.scale.toDouble()).toInt()
+                    if (fullH <= 0) throw Exception("no content")
+
+                    val scale = minOf(thumbWidth.toFloat() / wv.width, thumbHeight.toFloat() / fullH)
 
                     val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bmp)
-                    canvas.scale(sx, sy)
-
-                    val oldScrollX = wv.scrollX
-                    val oldScrollY = wv.scrollY
-                    wv.scrollTo(0, 0)
+                    canvas.scale(scale, scale)
                     wv.draw(canvas)
-                    wv.scrollTo(oldScrollX, oldScrollY)
                     if (wasGone) wv.visibility = View.GONE
 
                     thumb.setImageBitmap(bmp)
