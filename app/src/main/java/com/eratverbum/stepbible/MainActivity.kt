@@ -249,18 +249,12 @@ class MainActivity : AppCompatActivity() {
                         (function(){
                             if (window.__stepBridgeReady) return;
                             window.__stepBridgeReady = true;
-                            try {
-                                var desc = Object.getOwnPropertyDescriptor(Document.prototype, 'title');
-                                if (desc && desc.set) {
-                                    Object.defineProperty(document, 'title', {
-                                        get: function() { return desc.get.call(document); },
-                                        set: function(val) {
-                                            desc.set.call(document, val);
-                                            StepBridge.onTitleChanged(val);
-                                        }
-                                    });
-                                }
-                            } catch(e) {}
+                            var el = document.querySelector('title');
+                            if (el) {
+                                new MutationObserver(function() {
+                                    StepBridge.onTitleChanged(document.title);
+                                }).observe(el, { childList: true, subtree: true });
+                            }
                             window.addEventListener('popstate', function() {
                                 setTimeout(function() {
                                     StepBridge.onTitleChanged(document.title);
