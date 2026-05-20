@@ -35,9 +35,9 @@
     <View
         android:id="@+id/tab_indicator"
         android:layout_width="match_parent"
-        android:layout_height="3dp"
+        android:layout_height="4dp"
         android:layout_gravity="bottom"
-        android:background="#FF6200EE"
+        android:background="#FFBB86FC"
         android:visibility="gone" />
 
 </FrameLayout>

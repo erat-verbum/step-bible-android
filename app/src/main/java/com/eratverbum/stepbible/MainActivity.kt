@@ -381,7 +381,8 @@ class MainActivity : AppCompatActivity() {
 
         val indices = mutableListOf<Int>()
         val items = mutableListOf<String>()
-        for (i in start until end) {
+        val range = if (back) (start until end).reversed() else (start until end)
+        for (i in range) {
             val item = list.getItemAtIndex(i) ?: continue
             indices.add(i)
             val label = if (item.title.isNullOrBlank()) item.url else item.title
