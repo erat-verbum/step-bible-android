@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var currentIndex = -1
     private var closingTab = false
     private var serverFailed = false
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
 
     private data class TabInfo(
         val webView: WebView,
@@ -188,6 +189,7 @@ class MainActivity : AppCompatActivity() {
             fileChooserParams: WebChromeClient.FileChooserParams?
         ): Boolean {
             val intent = fileChooserParams?.createIntent() ?: return false
+            fileCallback = filePathCallback
             startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
             return true
         }
@@ -348,12 +350,13 @@ class MainActivity : AppCompatActivity() {
                     val h = wv.height
                     if (w <= 0 || h <= 0) throw Exception("no dimensions")
 
-                    val sx = thumbWidth.toFloat() / w.toFloat()
-                    val sy = thumbHeight.toFloat() / h.toFloat()
+                    val scale = minOf(thumbWidth.toFloat() / w, thumbHeight.toFloat() / h)
+                    val outW = (w * scale).toInt().coerceAtLeast(1)
+                    val outH = (h * scale).toInt().coerceAtLeast(1)
 
-                    val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
+                    val bmp = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bmp)
-                    canvas.scale(sx, sy)
+                    canvas.scale(scale, scale)
 
                     val oldScrollX = wv.scrollX
                     val oldScrollY = wv.scrollY
@@ -527,6 +530,18 @@ class MainActivity : AppCompatActivity() {
             return
         }
         super.onBackPressed()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            val result = if (resultCode == RESULT_OK && data?.data != null) {
+                arrayOf(data.data!!)
+            } else null
+            fileCallback?.onReceiveValue(result)
+            fileCallback = null
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onDestroy() {
