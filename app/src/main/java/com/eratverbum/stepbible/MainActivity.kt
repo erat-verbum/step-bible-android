@@ -202,22 +202,13 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
-        wv.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
-            fun onHistoryChanged() {
-                runOnUiThread { updateNavButtons() }
-            }
-        }, "StepAndroid")
-
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                // Only intercept main-frame navigation, not sub-resources
                 if (request?.isForMainFrame != true) return false
                 val url = request?.url?.toString() ?: return false
                 val port = ServerState.port
                 if (url.startsWith("http://127.0.0.1:$port") ||
                     url.startsWith("http://localhost:$port")) {
-                    // Allow same-host navigation (with or without trailing slash/path)
                     val rest = url.removePrefix("http://127.0.0.1:$port")
                         .removePrefix("http://localhost:$port")
                     if (rest.isEmpty() || rest[0] == '/' || rest[0] == '#' || rest[0] == '?')
@@ -240,28 +231,6 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
-                view?.evaluateJavascript("""
-                    (function(){
-                        window.stepInternalErrors=0;
-                        var origError=console.error;
-                        window.onerror=function(){return true};
-                        window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
-                        // Track SPA history changes
-                        var pushState = history.pushState;
-                        history.pushState = function() {
-                            pushState.apply(this, arguments);
-                            StepAndroid.onHistoryChanged();
-                        };
-                        var replaceState = history.replaceState;
-                        history.replaceState = function() {
-                            replaceState.apply(this, arguments);
-                            StepAndroid.onHistoryChanged();
-                        };
-                        window.addEventListener('popstate', function() {
-                            StepAndroid.onHistoryChanged();
-                        });
-                    })();
-                """.trimIndent(), null)
             }
         }
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
