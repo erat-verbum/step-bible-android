@@ -327,8 +327,18 @@ class MainActivity : AppCompatActivity() {
                 // Generate thumbnail by rendering WebView to bitmap
                 try {
                     val wv = tab.webView
-                    val w = if (wv.width > 0) wv.width else container.width
-                    val h = if (wv.height > 0) wv.height else container.height
+                    val wasGone = wv.visibility == View.GONE
+                    if (wasGone) {
+                        wv.visibility = View.VISIBLE
+                        wv.measure(
+                            View.MeasureSpec.makeMeasureSpec(container.width, View.MeasureSpec.EXACTLY),
+                            View.MeasureSpec.makeMeasureSpec(container.height, View.MeasureSpec.EXACTLY)
+                        )
+                        wv.layout(0, 0, container.width, container.height)
+                    }
+
+                    val w = wv.width
+                    val h = wv.height
                     if (w <= 0 || h <= 0) throw Exception("no dimensions")
 
                     val sx = thumbWidth.toFloat() / w.toFloat()
@@ -343,6 +353,7 @@ class MainActivity : AppCompatActivity() {
                     wv.scrollTo(0, 0)
                     wv.draw(canvas)
                     wv.scrollTo(oldScrollX, oldScrollY)
+                    if (wasGone) wv.visibility = View.GONE
 
                     thumb.setImageBitmap(bmp)
                 } catch (_: Exception) {
