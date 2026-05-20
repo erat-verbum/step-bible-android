@@ -37,7 +37,7 @@
         android:layout_width="match_parent"
         android:layout_height="4dp"
         android:layout_gravity="bottom"
-        android:background="#FF7EC8DD"
+        android:background="@android:color/white"
         android:visibility="gone" />
 
 </FrameLayout>
