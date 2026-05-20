@@ -514,7 +514,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTabBarSelection() {
         for (i in tabs.indices) {
-            tabs[i].tabView.alpha = if (i == currentIndex) 1.0f else 0.6f
+            val tab = tabs[i]
+            val titleView = tab.tabView.findViewById<TextView>(R.id.tab_title)
+            val indicator = tab.tabView.findViewById<View>(R.id.tab_indicator)
+            val isSelected = i == currentIndex
+            titleView.setTextColor(if (isSelected) android.graphics.Color.WHITE else 0xB3FFFFFF.toInt())
+            indicator.visibility = if (isSelected) View.VISIBLE else View.GONE
+            tab.tabView.findViewById<ImageView>(R.id.tab_close).alpha = if (isSelected) 1.0f else 0.5f
         }
     }
 
