@@ -86,7 +86,14 @@ class MainActivity : AppCompatActivity() {
         btnBack.setOnLongClickListener { showHistory(true); true }
         btnForward.setOnLongClickListener { showHistory(false); true }
         btnReload.setOnClickListener { reloadCurrent() }
-        btnNewTab.setOnClickListener { createTab("http://127.0.0.1:${ServerState.port}/") }
+        btnNewTab.setOnClickListener {
+            val url = if (currentIndex in tabs.indices) {
+                tabs[currentIndex].webView.url ?: "http://127.0.0.1:${ServerState.port}/"
+            } else {
+                "http://127.0.0.1:${ServerState.port}/"
+            }
+            createTab(url)
+        }
         btnTabOverview.setOnClickListener { showTabOverview() }
         retryButton.setOnClickListener { retry() }
 
@@ -227,6 +234,8 @@ class MainActivity : AppCompatActivity() {
                         tabs[idx].title = title
                         if (idx == currentIndex) {
                             tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
+                            // Re-scroll in case title width changed
+                            scrollTabToVisible(idx)
                         }
                     }
                 }
@@ -253,23 +262,21 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
                 if (view != null) {
-                    val idx = tabs.indexOfFirst { it.webView == view }
-                    if (idx >= 0) {
-                        val title = view.title ?: ""
-                        tabs[idx].title = title
-                        if (idx == currentIndex) {
-                            tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
-                        }
-                    }
                     view.evaluateJavascript("""
                         (function(){
-                            if (window.__stepBridgeReady) return;
-                            window.__stepBridgeReady = true;
                             var el = document.querySelector('title');
-                            if (el) {
+                            if (el && !window.__stepBridgeReady) {
+                                window.__stepBridgeReady = true;
+                                var debounceId;
                                 new MutationObserver(function() {
-                                    StepBridge.onTitleChanged(document.title);
+                                    clearTimeout(debounceId);
+                                    debounceId = setTimeout(function() {
+                                        StepBridge.onTitleChanged(document.title);
+                                    }, 80);
                                 }).observe(el, { childList: true, subtree: true });
+                                setTimeout(function() {
+                                    StepBridge.onTitleChanged(document.title);
+                                }, 200);
                             }
                         })();
                     """.trimIndent(), null)
@@ -450,13 +457,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addTabView(wv: WebView, url: String) {
-        val tabView = createTabView(url)
+    private fun addTabView(wv: WebView, @Suppress("UNUSED_PARAMETER") url: String) {
+        val tabView = createTabView("Loading...")
 
         container.addView(wv)
         wv.visibility = View.GONE
 
-        tabs.add(TabInfo(wv, tabView, url))
+        tabs.add(TabInfo(wv, tabView, "Loading..."))
         showTab(tabs.size - 1)
     }
 
@@ -495,7 +502,20 @@ class MainActivity : AppCompatActivity() {
         updateTabBarSelection()
         tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
         updateNavButtons()
-        tabScroller.post { tabScroller.smoothScrollTo(tabs[index].tabView.left, 0) }
+        scrollTabToVisible(index)
+    }
+
+    private fun scrollTabToVisible(index: Int) {
+        if (index !in tabs.indices) return
+        tabScroller.postDelayed({
+            val target = tabs[index].tabView
+            val visibleRight = tabScroller.scrollX + tabScroller.width
+            if (target.right > visibleRight) {
+                tabScroller.smoothScrollBy(target.right - visibleRight, 0)
+            } else if (target.left < tabScroller.scrollX) {
+                tabScroller.smoothScrollTo(target.left, 0)
+            }
+        }, 16)
     }
 
     private fun closeTab(index: Int) {
