@@ -15,9 +15,11 @@ class StepServerService : Service() {
 
     private var serverThread: Thread? = null
     private val serverPort = 8989
+    private lateinit var appDir: File
 
     override fun onCreate() {
         super.onCreate()
+        appDir = filesDir
         createNotificationChannel()
     }
 
@@ -85,9 +87,8 @@ class StepServerService : Service() {
     private fun setupAndStartServer() {
         var retries = 0
         while (retries < 2) {
-            val appDir = filesDir ?: run { Log.e(TAG, "filesDir is null"); return }
-            val jreDir = File(appDir, "jre")
             val stepDir = File(appDir, "step")
+            val jreDir = File(appDir, "jre")
 
             if (needExtraction(appDir)) {
                 try {
