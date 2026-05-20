@@ -202,6 +202,13 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
+        wv.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun onHistoryChanged() {
+                runOnUiThread { updateNavButtons() }
+            }
+        }, "StepAndroid")
+
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 // Only intercept main-frame navigation, not sub-resources
@@ -217,6 +224,9 @@ class MainActivity : AppCompatActivity() {
                         return false
                 }
                 return true
+            }
+            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                updateNavButtons()
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
@@ -236,6 +246,20 @@ class MainActivity : AppCompatActivity() {
                         var origError=console.error;
                         window.onerror=function(){return true};
                         window.addEventListener('unhandledrejection',function(e){e.preventDefault()});
+                        // Track SPA history changes
+                        var pushState = history.pushState;
+                        history.pushState = function() {
+                            pushState.apply(this, arguments);
+                            StepAndroid.onHistoryChanged();
+                        };
+                        var replaceState = history.replaceState;
+                        history.replaceState = function() {
+                            replaceState.apply(this, arguments);
+                            StepAndroid.onHistoryChanged();
+                        };
+                        window.addEventListener('popstate', function() {
+                            StepAndroid.onHistoryChanged();
+                        });
                     })();
                 """.trimIndent(), null)
             }
@@ -255,9 +279,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateNavButtons() {
         if (currentIndex !in tabs.indices) return
         val wv = tabs[currentIndex].webView
+        val bfList = wv.copyBackForwardList()
+        val hasBack = bfList.currentIndex > 0
+        val hasForward = bfList.currentIndex < bfList.size - 1
         // Use alpha instead of enabled=false to preserve ripple feedback
-        btnBack.alpha = if (wv.canGoBack()) 1.0f else 0.3f
-        btnForward.alpha = if (wv.canGoForward()) 1.0f else 0.3f
+        btnBack.alpha = if (hasBack) 1.0f else 0.3f
+        btnForward.alpha = if (hasForward) 1.0f else 0.3f
     }
 
     private fun showTabOverview() {
