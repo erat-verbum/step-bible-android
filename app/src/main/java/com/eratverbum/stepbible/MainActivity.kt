@@ -344,20 +344,19 @@ class MainActivity : AppCompatActivity() {
                         wv.layout(0, 0, container.width, container.height)
                     }
 
-                    if (wv.width <= 0) throw Exception("no width")
+                    val fullH = minOf((wv.contentHeight * wv.scale).toInt(), 20000)
+                    if (wv.width <= 0 || fullH <= 0) throw Exception("no content")
 
-                    val fullH = (wv.contentHeight * wv.scale.toDouble()).toInt()
-                    if (fullH <= 0) throw Exception("no content")
-
-                    val scale = minOf(thumbWidth.toFloat() / wv.width, thumbHeight.toFloat() / fullH)
-
-                    val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
-                    val canvas = Canvas(bmp)
-                    canvas.scale(scale, scale)
-                    wv.draw(canvas)
+                    // Capture full page at full resolution, then scale down
+                    val fullBmp = Bitmap.createBitmap(wv.width, fullH, Bitmap.Config.RGB_565)
+                    Canvas(fullBmp).apply {
+                        wv.draw(this)
+                    }
+                    val scaled = Bitmap.createScaledBitmap(fullBmp, thumbWidth, thumbHeight, true)
+                    fullBmp.recycle()
                     if (wasGone) wv.visibility = View.GONE
 
-                    thumb.setImageBitmap(bmp)
+                    thumb.setImageBitmap(scaled)
                 } catch (_: Exception) {
                     thumb.setImageResource(android.R.drawable.ic_menu_search)
                 }
