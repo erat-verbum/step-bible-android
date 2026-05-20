@@ -345,14 +345,18 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val fullH = minOf((wv.contentHeight * wv.scale).toInt(), 20000)
-                    if (wv.width <= 0 || fullH <= 0) throw Exception("no content")
+                    val fullW = wv.width
+                    if (fullW <= 0 || fullH <= 0) throw Exception("no content")
 
                     // Capture full page at full resolution, then scale down
-                    val fullBmp = Bitmap.createBitmap(wv.width, fullH, Bitmap.Config.RGB_565)
+                    val fullBmp = Bitmap.createBitmap(fullW, fullH, Bitmap.Config.RGB_565)
                     Canvas(fullBmp).apply {
                         wv.draw(this)
                     }
-                    val scaled = Bitmap.createScaledBitmap(fullBmp, thumbWidth, thumbHeight, true)
+                    val scale = minOf(thumbWidth.toFloat() / fullW, thumbHeight.toFloat() / fullH)
+                    val outW = (fullW * scale).toInt().coerceAtLeast(1)
+                    val outH = (fullH * scale).toInt().coerceAtLeast(1)
+                    val scaled = Bitmap.createScaledBitmap(fullBmp, outW, outH, true)
                     fullBmp.recycle()
                     if (wasGone) wv.visibility = View.GONE
 
