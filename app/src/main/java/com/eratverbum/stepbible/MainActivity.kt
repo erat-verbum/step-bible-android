@@ -228,6 +228,7 @@ class MainActivity : AppCompatActivity() {
         wv.addJavascriptInterface(object {
             @JavascriptInterface
             fun onTitleChanged(title: String) {
+                if (title.isBlank()) return
                 runOnUiThread {
                     val idx = tabs.indexOfFirst { it.webView == wv }
                     if (idx >= 0) {
@@ -267,15 +268,19 @@ class MainActivity : AppCompatActivity() {
                             var el = document.querySelector('title');
                             if (el && !window.__stepBridgeReady) {
                                 window.__stepBridgeReady = true;
+                                var sent = false;
+                                var mutated = false;
                                 var debounceId;
                                 new MutationObserver(function() {
+                                    mutated = true;
                                     clearTimeout(debounceId);
                                     debounceId = setTimeout(function() {
                                         StepBridge.onTitleChanged(document.title);
-                                    }, 80);
-                                }).observe(el, { childList: true, subtree: true });
+                                        sent = true;
+                                    }, 200);
+                                }).observe(el, { childList: true, subtree: true, characterData: true });
                                 setTimeout(function() {
-                                    StepBridge.onTitleChanged(document.title);
+                                    if (!sent && !mutated) StepBridge.onTitleChanged(document.title);
                                 }, 200);
                             }
                         })();
@@ -507,15 +512,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun scrollTabToVisible(index: Int) {
         if (index !in tabs.indices) return
-        tabScroller.postDelayed({
-            val target = tabs[index].tabView
-            val visibleRight = tabScroller.scrollX + tabScroller.width
-            if (target.right > visibleRight) {
-                tabScroller.smoothScrollBy(target.right - visibleRight, 0)
-            } else if (target.left < tabScroller.scrollX) {
-                tabScroller.smoothScrollTo(target.left, 0)
+        val target = tabs[index].tabView
+        target.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+            override fun onLayoutChange(v: View?, left: Int, top: Int, right: Int, bottom: Int,
+                                        oldLeft: Int, oldRight: Int, oldTop: Int, oldBottom: Int) {
+                v?.removeOnLayoutChangeListener(this)
+                val visibleRight = tabScroller.scrollX + tabScroller.width
+                if (right > visibleRight) {
+                    tabScroller.smoothScrollBy(right - visibleRight, 0)
+                } else if (left < tabScroller.scrollX) {
+                    tabScroller.smoothScrollTo(left, 0)
+                }
             }
-        }, 16)
+        })
     }
 
     private fun closeTab(index: Int) {
