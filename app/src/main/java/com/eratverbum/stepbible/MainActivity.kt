@@ -328,7 +328,7 @@ class MainActivity : AppCompatActivity() {
                 title.text = if (tab.title.isBlank()) "STEP Bible" else tab.title
                 title.isSelected = pos == currentIndex
 
-                // Generate thumbnail from the full page content
+                // Generate thumbnail from visible viewport at scroll (0,0)
                 try {
                     val wv = tab.webView
                     val wasGone = wv.visibility == View.GONE
@@ -341,28 +341,6 @@ class MainActivity : AppCompatActivity() {
                         wv.layout(0, 0, container.width, container.height)
                     }
 
-                    try {
-                        // Full-page capture
-                        val pic = wv.capturePicture()
-                        val srcW = pic.width
-                        val srcH = pic.height
-                        if (srcW > 0 && srcH > 0) {
-                            val scale = minOf(thumbWidth.toFloat() / srcW, thumbHeight.toFloat() / srcH)
-                            val scaledW = (srcW * scale).toInt().coerceAtLeast(1)
-                            val scaledH = (srcH * scale).toInt().coerceAtLeast(1)
-                            val bmp = Bitmap.createBitmap(scaledW, scaledH, Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(bmp)
-                            canvas.scale(scale, scale)
-                            pic.draw(canvas)
-                            if (wasGone) wv.visibility = View.GONE
-                            thumb.setImageBitmap(bmp)
-                            return@getView v
-                        }
-                    } catch (_: AbstractMethodError) {
-                        // capturePicture not supported, fall through
-                    }
-
-                    // Fallback: capture visible viewport
                     val w = wv.width
                     val h = wv.height
                     if (w <= 0 || h <= 0) throw Exception("no dimensions")
