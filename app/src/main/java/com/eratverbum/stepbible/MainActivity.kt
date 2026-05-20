@@ -61,9 +61,6 @@ class MainActivity : AppCompatActivity() {
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            WebView.enableSlowWholeDocumentDraw()
-        }
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -331,7 +328,7 @@ class MainActivity : AppCompatActivity() {
                 title.text = if (tab.title.isBlank()) "STEP Bible" else tab.title
                 title.isSelected = pos == currentIndex
 
-                // Generate thumbnail from full page content
+                // Generate thumbnail from the visible viewport at scroll (0,0)
                 try {
                     val wv = tab.webView
                     val wasGone = wv.visibility == View.GONE
@@ -344,23 +341,25 @@ class MainActivity : AppCompatActivity() {
                         wv.layout(0, 0, container.width, container.height)
                     }
 
-                    val fullH = minOf((wv.contentHeight * wv.scale).toInt(), 20000)
-                    val fullW = wv.width
-                    if (fullW <= 0 || fullH <= 0) throw Exception("no content")
+                    val w = wv.width
+                    val h = wv.height
+                    if (w <= 0 || h <= 0) throw Exception("no dimensions")
 
-                    // Capture full page at full resolution, then scale down
-                    val fullBmp = Bitmap.createBitmap(fullW, fullH, Bitmap.Config.RGB_565)
-                    Canvas(fullBmp).apply {
-                        wv.draw(this)
-                    }
-                    val scale = minOf(thumbWidth.toFloat() / fullW, thumbHeight.toFloat() / fullH)
-                    val outW = (fullW * scale).toInt().coerceAtLeast(1)
-                    val outH = (fullH * scale).toInt().coerceAtLeast(1)
-                    val scaled = Bitmap.createScaledBitmap(fullBmp, outW, outH, true)
-                    fullBmp.recycle()
+                    val sx = thumbWidth.toFloat() / w.toFloat()
+                    val sy = thumbHeight.toFloat() / h.toFloat()
+
+                    val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    canvas.scale(sx, sy)
+
+                    val oldScrollX = wv.scrollX
+                    val oldScrollY = wv.scrollY
+                    wv.scrollTo(0, 0)
+                    wv.draw(canvas)
+                    wv.scrollTo(oldScrollX, oldScrollY)
                     if (wasGone) wv.visibility = View.GONE
 
-                    thumb.setImageBitmap(scaled)
+                    thumb.setImageBitmap(bmp)
                 } catch (_: Exception) {
                     thumb.setImageResource(android.R.drawable.ic_menu_search)
                 }
