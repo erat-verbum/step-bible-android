@@ -190,6 +190,18 @@ class MainActivity : AppCompatActivity() {
             return true
         }
 
+        override fun onReceivedTitle(view: WebView?, title: String?) {
+            if (view == null || title.isNullOrBlank()) return
+            val idx = tabs.indexOfFirst { it.webView == view }
+            if (idx >= 0) {
+                tabs[idx].title = title
+                if (idx == currentIndex) {
+                    tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
+                    scrollTabToVisible(idx)
+                }
+            }
+        }
+
         override fun onShowFileChooser(
             webView: WebView?,
             filePathCallback: ValueCallback<Array<Uri>>?,
@@ -225,24 +237,6 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
-        wv.addJavascriptInterface(object {
-            @JavascriptInterface
-            fun onTitleChanged(title: String) {
-                if (title.isBlank()) return
-                runOnUiThread {
-                    val idx = tabs.indexOfFirst { it.webView == wv }
-                    if (idx >= 0) {
-                        tabs[idx].title = title
-                        if (idx == currentIndex) {
-                            tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
-                            // Re-scroll in case title width changed
-                            scrollTabToVisible(idx)
-                        }
-                    }
-                }
-            }
-        }, "StepBridge")
-
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
@@ -262,30 +256,6 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
-                if (view != null) {
-                    view.evaluateJavascript("""
-                        (function(){
-                            var el = document.querySelector('title');
-                            if (el && !window.__stepBridgeReady) {
-                                window.__stepBridgeReady = true;
-                                var sent = false;
-                                var mutated = false;
-                                var debounceId;
-                                new MutationObserver(function() {
-                                    mutated = true;
-                                    clearTimeout(debounceId);
-                                    debounceId = setTimeout(function() {
-                                        StepBridge.onTitleChanged(document.title);
-                                        sent = true;
-                                    }, 200);
-                                }).observe(el, { childList: true, subtree: true, characterData: true });
-                                setTimeout(function() {
-                                    if (!sent && !mutated) StepBridge.onTitleChanged(document.title);
-                                }, 200);
-                            }
-                        })();
-                    """.trimIndent(), null)
-                }
             }
         }
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
