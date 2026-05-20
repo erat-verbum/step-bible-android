@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var container: ViewGroup
     private lateinit var toolbar: LinearLayout
     private lateinit var tabBar: LinearLayout
+    private lateinit var tabScroller: android.widget.HorizontalScrollView
     private lateinit var btnBack: ImageButton
     private lateinit var btnForward: ImageButton
     private lateinit var btnReload: ImageButton
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity() {
         container = findViewById(R.id.webview_container)
         toolbar = findViewById(R.id.toolbar)
         tabBar = findViewById(R.id.tab_bar)
+        tabScroller = findViewById(R.id.tab_scroller)
         btnBack = findViewById(R.id.btn_back)
         btnForward = findViewById(R.id.btn_forward)
         btnReload = findViewById(R.id.btn_reload)
@@ -325,12 +327,23 @@ class MainActivity : AppCompatActivity() {
                 // Generate thumbnail by rendering WebView to bitmap
                 try {
                     val wv = tab.webView
+                    val w = if (wv.width > 0) wv.width else container.width
+                    val h = if (wv.height > 0) wv.height else container.height
+                    if (w <= 0 || h <= 0) throw Exception("no dimensions")
+
+                    val sx = thumbWidth.toFloat() / w.toFloat()
+                    val sy = thumbHeight.toFloat() / h.toFloat()
+
                     val bmp = Bitmap.createBitmap(thumbWidth, thumbHeight, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bmp)
-                    val sx = thumbWidth.toFloat() / wv.width.toFloat()
-                    val sy = thumbHeight.toFloat() / wv.height.toFloat()
                     canvas.scale(sx, sy)
+
+                    val oldScrollX = wv.scrollX
+                    val oldScrollY = wv.scrollY
+                    wv.scrollTo(0, 0)
                     wv.draw(canvas)
+                    wv.scrollTo(oldScrollX, oldScrollY)
+
                     thumb.setImageBitmap(bmp)
                 } catch (_: Exception) {
                     thumb.setImageResource(android.R.drawable.ic_menu_search)
@@ -461,6 +474,7 @@ class MainActivity : AppCompatActivity() {
         updateTabBarSelection()
         tabs[index].tabView.findViewById<TextView>(R.id.tab_title).text = tabs[index].title
         updateNavButtons()
+        tabScroller.post { tabScroller.smoothScrollTo(tabs[index].tabView.left, 0) }
     }
 
     private fun closeTab(index: Int) {
