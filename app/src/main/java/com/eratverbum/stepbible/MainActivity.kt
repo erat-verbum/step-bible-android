@@ -218,6 +218,16 @@ class MainActivity : AppCompatActivity() {
             }
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 updateNavButtons()
+                view?.evaluateJavascript("document.title") { result ->
+                    val title = result?.removeSurrounding("\"") ?: ""
+                    val idx = tabs.indexOfFirst { it.webView == view }
+                    if (idx >= 0) {
+                        tabs[idx].title = title
+                        if (idx == currentIndex) {
+                            tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
+                        }
+                    }
+                }
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
