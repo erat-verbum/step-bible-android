@@ -253,9 +253,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateNavButtons() {
-        // Keep buttons enabled — disabled state hides click feedback.
-        // SPA history (history.pushState) isn't tracked by canGoBack(),
-        // so we rely on window.history.back()/forward() as fallback.
+        if (currentIndex !in tabs.indices) return
+        val wv = tabs[currentIndex].webView
+        // Use alpha instead of enabled=false to preserve ripple feedback
+        btnBack.alpha = if (wv.canGoBack()) 1.0f else 0.3f
+        btnForward.alpha = if (wv.canGoForward()) 1.0f else 0.3f
     }
 
     private fun showTabOverview() {

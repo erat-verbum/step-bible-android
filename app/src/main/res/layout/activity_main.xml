@@ -17,7 +17,7 @@
             android:id="@+id/btn_back"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_previous"
+            android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Back"
             android:scaleType="center" />
@@ -26,7 +26,7 @@
             android:id="@+id/btn_forward"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_media_next"
+            android:src="@drawable/ic_arrow_forward"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Forward"
             android:scaleType="center" />
@@ -35,7 +35,7 @@
             android:id="@+id/btn_reload"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_rotate"
+            android:src="@drawable/ic_refresh"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Reload"
             android:scaleType="center" />
@@ -49,7 +49,7 @@
             android:id="@+id/btn_new_tab"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_input_add"
+            android:src="@drawable/ic_add"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="New tab"
             android:scaleType="center" />
@@ -58,7 +58,7 @@
             android:id="@+id/btn_tab_overview"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:src="@drawable/ic_grid_view"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Tab overview"
             android:scaleType="center" />
