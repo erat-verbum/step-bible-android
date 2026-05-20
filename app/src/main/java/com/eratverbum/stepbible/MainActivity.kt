@@ -58,7 +58,9 @@ class MainActivity : AppCompatActivity() {
         val webView: WebView,
         val tabView: View,
         var title: String
-    )
+    ) {
+        var scrollListener: View.OnLayoutChangeListener? = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -482,8 +484,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun scrollTabToVisible(index: Int) {
         if (index !in tabs.indices) return
-        val target = tabs[index].tabView
-        target.addOnLayoutChangeListener(object : View.OnLayoutChangeListener {
+        val tab = tabs[index]
+        tab.scrollListener?.let { tab.tabView.removeOnLayoutChangeListener(it) }
+        val listener = object : View.OnLayoutChangeListener {
             override fun onLayoutChange(v: View?, left: Int, top: Int, right: Int, bottom: Int,
                                         oldLeft: Int, oldRight: Int, oldTop: Int, oldBottom: Int) {
                 v?.removeOnLayoutChangeListener(this)
@@ -494,12 +497,15 @@ class MainActivity : AppCompatActivity() {
                     tabScroller.smoothScrollTo(left, 0)
                 }
             }
-        })
+        }
+        tab.scrollListener = listener
+        tab.tabView.addOnLayoutChangeListener(listener)
     }
 
     private fun closeTab(index: Int) {
         if (index !in tabs.indices || tabs.size <= 1) return
         val tab = tabs[index]
+        tab.scrollListener?.let { tab.tabView.removeOnLayoutChangeListener(it) }
         container.removeView(tab.webView)
         tab.webView.destroy()
         tabBar.removeView(tab.tabView)
