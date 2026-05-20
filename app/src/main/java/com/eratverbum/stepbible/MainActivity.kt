@@ -289,7 +289,7 @@ class MainActivity : AppCompatActivity() {
         dialog.window?.setBackgroundDrawableResource(android.R.color.white)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         // Status bar matches the toolbar color
-        dialog.window?.statusBarColor = 0xFF6200EE.toInt()
+        dialog.window?.statusBarColor = 0xFF1F768F.toInt()
         val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
         dialog.setContentView(view)
 
