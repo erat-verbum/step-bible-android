@@ -261,11 +261,12 @@ class MainActivity : AppCompatActivity() {
     private fun showTabOverview() {
         if (tabs.isEmpty()) return
 
-        val builder = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_NoActionBar_Fullscreen)
-        val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
-        builder.setView(view)
-        val dialog = builder.create()
+        val dialog = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        dialog.window?.setBackgroundDrawableResource(android.R.color.white)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
+        dialog.setContentView(view)
 
         val grid = view.findViewById<android.widget.GridView>(R.id.tab_grid)
         val countView = view.findViewById<TextView>(R.id.tab_count)
