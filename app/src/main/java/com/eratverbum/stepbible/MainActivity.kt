@@ -202,6 +202,21 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
+        wv.addJavascriptInterface(object {
+            @android.webkit.JavascriptInterface
+            fun onTitleChanged(title: String) {
+                runOnUiThread {
+                    val idx = tabs.indexOfFirst { it.webView == wv }
+                    if (idx >= 0) {
+                        tabs[idx].title = title
+                        if (idx == currentIndex) {
+                            tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
+                        }
+                    }
+                }
+            }
+        }, "StepBridge")
+
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
@@ -218,18 +233,6 @@ class MainActivity : AppCompatActivity() {
             }
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 updateNavButtons()
-                view?.post {
-                    view.evaluateJavascript("document.title") { result ->
-                        val title = result?.removeSurrounding("\"") ?: ""
-                        val idx = tabs.indexOfFirst { it.webView == view }
-                        if (idx >= 0) {
-                            tabs[idx].title = title
-                            if (idx == currentIndex) {
-                                tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
-                            }
-                        }
-                    }
-                }
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
@@ -242,6 +245,25 @@ class MainActivity : AppCompatActivity() {
                             tabs[idx].tabView.findViewById<TextView>(R.id.tab_title).text = title
                         }
                     }
+                    view.evaluateJavascript("""
+                        (function(){
+                            if (window.__stepBridgeReady) return;
+                            window.__stepBridgeReady = true;
+                            var _title = document.title;
+                            Object.defineProperty(document, 'title', {
+                                get: function() { return _title; },
+                                set: function(val) {
+                                    _title = val;
+                                    StepBridge.onTitleChanged(val);
+                                }
+                            });
+                            window.addEventListener('popstate', function() {
+                                setTimeout(function() {
+                                    StepBridge.onTitleChanged(document.title);
+                                }, 50);
+                            });
+                        })();
+                    """.trimIndent(), null)
                 }
             }
         }
