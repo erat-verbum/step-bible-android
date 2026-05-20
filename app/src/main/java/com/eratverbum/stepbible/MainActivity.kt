@@ -14,7 +14,6 @@ import android.os.Message
 import android.view.View
 import android.view.Window
 import android.view.ViewGroup
-import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
