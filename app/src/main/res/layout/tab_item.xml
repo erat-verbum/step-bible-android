@@ -3,8 +3,8 @@
     android:layout_width="wrap_content"
     android:layout_height="match_parent"
     android:gravity="center_vertical"
-    android:paddingStart="12dp"
-    android:paddingEnd="4dp"
+    android:paddingStart="8dp"
+    android:paddingEnd="2dp"
     android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true">
@@ -14,17 +14,15 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@android:color/white"
-        android:maxWidth="200dp"
-        android:ellipsize="end"
+        android:maxWidth="160dp"
         android:maxLines="1"
-        android:textSize="14sp" />
+        android:textSize="13sp" />
 
     <ImageView
         android:id="@+id/tab_close"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:layout_marginStart="4dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_marginStart="2dp"
         android:contentDescription="@string/tab_close" />
 
 </LinearLayout>
