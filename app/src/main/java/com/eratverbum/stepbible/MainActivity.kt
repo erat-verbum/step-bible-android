@@ -1,24 +1,33 @@
 package com.eratverbum.stepbible
 
+import android.app.Dialog
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
 import android.view.View
+import android.view.Window
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.GridView
+import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -31,7 +40,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var container: ViewGroup
     private lateinit var toolbar: LinearLayout
     private lateinit var tabBar: LinearLayout
-    private lateinit var tabScroller: android.widget.HorizontalScrollView
+    private lateinit var tabScroller: HorizontalScrollView
     private lateinit var btnBack: ImageButton
     private lateinit var btnForward: ImageButton
     private lateinit var btnReload: ImageButton
@@ -172,8 +181,8 @@ class MainActivity : AppCompatActivity() {
 
         override fun onShowFileChooser(
             webView: WebView?,
-            filePathCallback: android.webkit.ValueCallback<Array<Uri>>?,
-            fileChooserParams: android.webkit.WebChromeClient.FileChooserParams?
+            filePathCallback: ValueCallback<Array<Uri>>?,
+            fileChooserParams: WebChromeClient.FileChooserParams?
         ): Boolean {
             val intent = fileChooserParams?.createIntent() ?: return false
             startActivityForResult(intent, FILE_CHOOSER_REQUEST_CODE)
@@ -205,7 +214,7 @@ class MainActivity : AppCompatActivity() {
             displayZoomControls = false
         }
         wv.addJavascriptInterface(object {
-            @android.webkit.JavascriptInterface
+            @JavascriptInterface
             fun onTitleChanged(title: String) {
                 runOnUiThread {
                     val idx = tabs.indexOfFirst { it.webView == wv }
@@ -220,7 +229,7 @@ class MainActivity : AppCompatActivity() {
         }, "StepBridge")
 
         wv.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
                 val url = request?.url?.toString() ?: return false
                 val port = ServerState.port
@@ -257,22 +266,17 @@ class MainActivity : AppCompatActivity() {
                                     StepBridge.onTitleChanged(document.title);
                                 }).observe(el, { childList: true, subtree: true });
                             }
-                            window.addEventListener('popstate', function() {
-                                setTimeout(function() {
-                                    StepBridge.onTitleChanged(document.title);
-                                }, 50);
-                            });
                         })();
                     """.trimIndent(), null)
                 }
             }
         }
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
-            val request = android.app.DownloadManager.Request(Uri.parse(url))
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.substringAfterLast('/'))
+            val dlRequest = DownloadManager.Request(Uri.parse(url))
+            dlRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            dlRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.substringAfterLast('/'))
             getSystemService(Context.DOWNLOAD_SERVICE)?.let { dm ->
-                (dm as DownloadManager).enqueue(request)
+                (dm as DownloadManager).enqueue(dlRequest)
                 Toast.makeText(this, "Download started", Toast.LENGTH_SHORT).show()
             }
         }
@@ -293,8 +297,8 @@ class MainActivity : AppCompatActivity() {
     private fun showTabOverview() {
         if (tabs.isEmpty()) return
 
-        val dialog = android.app.Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
-        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val dialog = Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.window?.setBackgroundDrawableResource(android.R.color.white)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         // Status bar matches the toolbar color
@@ -302,19 +306,19 @@ class MainActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
         dialog.setContentView(view)
 
-        val grid = view.findViewById<android.widget.GridView>(R.id.tab_grid)
+        val grid = view.findViewById<GridView>(R.id.tab_grid)
         val countView = view.findViewById<TextView>(R.id.tab_count)
         countView.text = "Tabs (${tabs.size})"
-        view.findViewById<android.widget.ImageButton>(R.id.btn_close_overview).setOnClickListener { dialog.dismiss() }
+        view.findViewById<ImageButton>(R.id.btn_close_overview).setOnClickListener { dialog.dismiss() }
 
         val thumbWidth = (resources.displayMetrics.widthPixels / 2) - 24
         val thumbHeight = (thumbWidth * 3) / 2
 
-        val adapter = object : android.widget.BaseAdapter() {
+        val adapter = object : BaseAdapter() {
             override fun getCount() = tabs.size
             override fun getItem(i: Int) = tabs[i]
             override fun getItemId(i: Int) = i.toLong()
-            override fun getView(pos: Int, convert: android.view.View?, parent: ViewGroup): View {
+            override fun getView(pos: Int, convert: View?, parent: ViewGroup): View {
                 val v = convert ?: layoutInflater.inflate(R.layout.item_tab_preview, parent, false)
                 val title = v.findViewById<TextView>(R.id.tab_title)
                 val thumb = v.findViewById<ImageView>(R.id.tab_thumbnail)
@@ -398,7 +402,7 @@ class MainActivity : AppCompatActivity() {
         if (items.isEmpty()) return
 
         val anchor = if (back) btnBack else btnForward
-        val popup = android.widget.PopupMenu(this, anchor)
+        val popup = PopupMenu(this, anchor)
         for ((i, label) in items.withIndex()) {
             popup.menu.add(0, i, 0, label)
         }
@@ -418,7 +422,7 @@ class MainActivity : AppCompatActivity() {
             wv.goBack()
             return
         }
-        wv.evaluateJavascript("window.history.back()", android.webkit.ValueCallback { _ -> })
+        wv.evaluateJavascript("window.history.back()", ValueCallback { _ -> })
     }
 
     private fun goForward() {
