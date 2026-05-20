@@ -268,6 +268,8 @@ class MainActivity : AppCompatActivity() {
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 
         val grid = view.findViewById<android.widget.GridView>(R.id.tab_grid)
+        val countView = view.findViewById<TextView>(R.id.tab_count)
+        countView.text = "Tabs (${tabs.size})"
         view.findViewById<android.widget.ImageButton>(R.id.btn_close_overview).setOnClickListener { dialog.dismiss() }
 
         val thumbWidth = (resources.displayMetrics.widthPixels / 2) - 24
