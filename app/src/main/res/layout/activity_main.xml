@@ -68,14 +68,14 @@
         android:id="@+id/tab_scroller"
         android:layout_width="match_parent"
         android:layout_height="28dp"
-        android:scrollbars="none">
+        android:scrollbars="none"
+        android:background="?attr/colorPrimary">
 
         <LinearLayout
             android:id="@+id/tab_bar"
             android:layout_width="wrap_content"
             android:layout_height="28dp"
             android:orientation="horizontal"
-            android:background="?attr/colorPrimary"
             android:gravity="center_vertical"
             android:visibility="gone" />
 

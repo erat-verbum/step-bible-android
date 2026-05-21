@@ -12,4 +12,6 @@
     <string name="forward">Forward</string>
     <string name="reload">Reload</string>
     <string name="new_tab">New tab</string>
+    <string name="share_lookup_esv">Look up in ESV</string>
+    <string name="share_lookup_multi">Look up in ESV, SBLG, THOT</string>
 </resources>

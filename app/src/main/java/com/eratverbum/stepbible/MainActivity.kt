@@ -53,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private var closingTab = false
     private var serverFailed = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var pendingShareUrl: String? = null
 
     private data class TabInfo(
         val webView: WebView,
@@ -98,6 +99,7 @@ class MainActivity : AppCompatActivity() {
         btnTabOverview.setOnClickListener { showTabOverview() }
         retryButton.setOnClickListener { retry() }
 
+        handleShareIntent(intent)
         startServerService()
     }
 
@@ -152,7 +154,9 @@ class MainActivity : AppCompatActivity() {
         toolbar.visibility = View.VISIBLE
         tabBar.visibility = View.VISIBLE
         updateNotificationServerRunning()
-        createTab("http://127.0.0.1:${ServerState.port}/")
+        val url = pendingShareUrl ?: "http://127.0.0.1:${ServerState.port}/"
+        pendingShareUrl = null
+        createTab(url)
     }
 
     private fun onServerFailed() {
@@ -254,6 +258,11 @@ class MainActivity : AppCompatActivity() {
             }
             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                 updateNavButtons()
+            }
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                if (url?.contains("version=ESV") == true) {
+                    android.util.Log.i("STEP", "Page started: $url")
+                }
             }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
@@ -543,6 +552,12 @@ class MainActivity : AppCompatActivity() {
         super.onBackPressed()
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
             val result = if (resultCode == RESULT_OK && data?.data != null) {
@@ -564,7 +579,63 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun handleShareIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+            ?: intent.getClipData()?.getItemAt(0)?.text?.toString()
+            ?: return
+        val cn = intent.component?.className ?: return
+        val isMulti = cn.endsWith(".ShareLookupMulti")
+        val cleaned = extractBibleReference(sharedText)
+        val parsed = parseReference(cleaned)
+        val encodedRef = Uri.encode(parsed)
+        android.util.Log.i("STEP", "Share: text='$sharedText' cleaned='$cleaned' -> '$parsed'")
+        val port = ServerState.port
+        val q = if (isMulti) {
+            "version=ESV@version=SBLG@version=THOT@reference=$encodedRef"
+        } else {
+            "version=ESV@reference=$encodedRef"
+        }
+        val options = if (isMulti) "HVUG" else "VUGH"
+        val url = "http://127.0.0.1:$port/?q=$q&options=$options&display=INTERLEAVED"
+        android.util.Log.d("STEP", "Share URL: $url")
+        if (toolbar.visibility == View.VISIBLE) {
+            createTab(url)
+        } else {
+            pendingShareUrl = url
+        }
+    }
+
     companion object {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
     }
+}
+
+internal fun extractBibleReference(text: String): String {
+    var t = text
+    t = t.replace(Regex("https?://\\S+"), " ")
+    t = t.replace(Regex("[\"\"'`\u201C\u201D\u2018\u2019]"), " ")
+    t = t.replace(Regex("\\s+"), " ").trim()
+    val match = Regex("(?:\\d+(?:\\s*(?:st|nd|rd|th))?\\s+)?[A-Z][a-z]+\\.?\\s*\\d+(?::\\d+(?:[-–—,]\\d+)*)?").find(t)
+    return match?.value ?: t
+}
+
+internal fun parseReference(input: String): String {
+    var p = input
+    p = p.replace("+", " ")
+    p = p.replace(Regex("[);]\\s*\\.\\d+"), "")
+    p = p.replace(Regex("[()\\[\\]{}]"), "")
+    p = p.replace(Regex("\\s+"), " ").trim()
+    p = p.replace(Regex("(\\d+)(st|nd|rd|th)\\s+", RegexOption.IGNORE_CASE), "$1 ")
+    p = p.replace(Regex("([a-zA-Z]+)\\s*[\\.:]\\s*(\\d+)", RegexOption.IGNORE_CASE), "$1 $2")
+    p = p.replace(Regex("(\\d+)\\s*[\\.:]\\s*(\\d+)"), "$1:$2")
+    p = p.replace(Regex("\\s*[-–—]\\s*"), "-")
+    p = p.replace(Regex(",?\\s*and\\s*", RegexOption.IGNORE_CASE), ",")
+    p = p.replace(Regex(",\\s+"), ",")
+    p = p.replace(Regex("\\b(cf|cf\\.|eg|eg\\.|see also|see|for example|for instance|e\\.g\\.|i\\.e\\.|such as)\\b\\.?\\s*", RegexOption.IGNORE_CASE), ", ")
+    p = p.replace(Regex(";\\s*"), ", ")
+    p = p.replace(Regex("\\.(\\s*)"), "$1")
+    p = p.replace(Regex(",\\s*,"), ",")
+    p = p.replace(Regex("\\s*,\\s*"), ",")
+    return p
 }

@@ -26,6 +26,30 @@
             </intent-filter>
         </activity>
 
+        <activity-alias
+            android:name=".ShareLookupESV"
+            android:targetActivity=".MainActivity"
+            android:label="@string/share_lookup_esv"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".ShareLookupMulti"
+            android:targetActivity=".MainActivity"
+            android:label="@string/share_lookup_multi"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
+
         <service
             android:name=".StepServerService"
             android:exported="false"
