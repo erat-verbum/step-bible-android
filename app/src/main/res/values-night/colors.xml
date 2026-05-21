@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tab_indicator">#FF7EC8DD</color>
+    <color name="tab_preview_bg">#2D2D2D</color>
+    <color name="tab_preview_stroke">#555555</color>
+    <color name="tab_preview_overlay">#CC121212</color>
+    <color name="dialog_bg">#1E1E1E</color>
+    <color name="webview_bg">#1E1E1E</color>
+</resources>

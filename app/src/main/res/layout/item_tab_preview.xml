@@ -19,7 +19,7 @@
         android:layout_height="28dp"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:background="#66000000"
-        android:contentDescription="Close"
+        android:contentDescription="@string/tab_close"
         android:scaleType="center"
         android:padding="4dp"
         android:layout_gravity="top|end" />
@@ -30,7 +30,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="8dp"
-        android:background="#CC333333"
+        android:background="@color/tab_preview_overlay"
         android:layout_gravity="bottom">
 
         <TextView
