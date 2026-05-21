@@ -32,6 +32,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -55,6 +57,8 @@ class MainActivity : AppCompatActivity() {
     private var serverFailed = false
     private var fileCallback: ValueCallback<Array<Uri>>? = null
     private var pendingShareUrl: String? = null
+    private var pendingRestoreData: List<Pair<String, String>>? = null
+    private var pendingRestoreIndex = 0
 
     private data class TabInfo(
         val webView: WebView,
@@ -101,6 +105,7 @@ class MainActivity : AppCompatActivity() {
         retryButton.setOnClickListener { retry() }
 
         handleShareIntent(intent)
+        loadSavedTabState()
         startServerService()
     }
 
@@ -155,9 +160,17 @@ class MainActivity : AppCompatActivity() {
         toolbar.visibility = View.VISIBLE
         tabBar.visibility = View.VISIBLE
         updateNotificationServerRunning()
-        val url = pendingShareUrl ?: "http://127.0.0.1:${ServerState.port}/"
-        pendingShareUrl = null
-        createTab(url)
+        when {
+            pendingShareUrl != null -> {
+                createTab(pendingShareUrl!!)
+                pendingShareUrl = null
+            }
+            pendingRestoreData != null -> {
+                restoreSavedTabs(pendingRestoreData!!, pendingRestoreIndex)
+                pendingRestoreData = null
+            }
+            else -> createTab("http://127.0.0.1:${ServerState.port}/")
+        }
     }
 
     private fun onServerFailed() {
@@ -575,6 +588,11 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
     }
 
+    override fun onPause() {
+        super.onPause()
+        saveTabState()
+    }
+
     override fun onDestroy() {
         for (tab in tabs) {
             container.removeView(tab.webView)
@@ -609,6 +627,61 @@ class MainActivity : AppCompatActivity() {
         } else {
             pendingShareUrl = url
         }
+    }
+
+    private fun saveTabState() {
+        if (tabBar.visibility != View.VISIBLE) return
+        val json = JSONArray().apply {
+            for (tab in tabs) {
+                val url = tab.webView.url ?: continue
+                put(JSONObject().apply {
+                    put("url", url)
+                    put("title", tab.title)
+                })
+            }
+        }.toString()
+        getPreferences(Context.MODE_PRIVATE).edit()
+            .putString("saved_tabs", json)
+            .putInt("saved_active", currentIndex)
+            .apply()
+    }
+
+    private fun loadSavedTabState() {
+        val prefs = getPreferences(Context.MODE_PRIVATE)
+        val json = prefs.getString("saved_tabs", null) ?: return
+        pendingRestoreIndex = prefs.getInt("saved_active", 0)
+        pendingRestoreData = try {
+            val arr = JSONArray(json)
+            val list = mutableListOf<Pair<String, String>>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(obj.getString("url") to obj.getString("title"))
+            }
+            list
+        } catch (e: Exception) {
+            null
+        }
+        prefs.edit().clear().apply()
+    }
+
+    private fun restoreSavedTabs(data: List<Pair<String, String>>, activeIndex: Int) {
+        for ((url, title) in data) {
+            createTab(rebuildUrl(url))
+            val tab = tabs.last()
+            tab.title = title
+            tab.tabView.findViewById<TextView>(R.id.tab_title).text = title
+        }
+        showTab(activeIndex.coerceIn(0, tabs.size - 1))
+    }
+
+    private fun rebuildUrl(saved: String): String {
+        val port = ServerState.port
+        if (saved.startsWith("http://") || saved.startsWith("https://")) {
+            return saved
+                .replace(Regex("http://127\\.0\\.0\\.1:\\d+"), "http://127.0.0.1:$port")
+                .replace(Regex("http://localhost:\\d+"), "http://localhost:$port")
+        }
+        return "http://127.0.0.1:$port$saved"
     }
 
     companion object {
