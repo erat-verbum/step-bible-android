@@ -164,6 +164,7 @@ class MainActivity : AppCompatActivity() {
             pendingShareUrl != null -> {
                 createTab(pendingShareUrl!!)
                 pendingShareUrl = null
+                pendingRestoreData = null
             }
             pendingRestoreData != null -> {
                 restoreSavedTabs(pendingRestoreData!!, pendingRestoreIndex)
@@ -312,11 +313,9 @@ class MainActivity : AppCompatActivity() {
     private fun showTabOverview() {
         if (tabs.isEmpty()) return
 
-        val dialog = Dialog(this, android.R.style.Theme_DeviceDefault_Light_NoActionBar)
+        val dialog = Dialog(this, R.style.Theme_STEPBible)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.window?.setBackgroundDrawableResource(android.R.color.white)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        // Status bar matches the toolbar color
         dialog.window?.statusBarColor = 0xFF1F768F.toInt()
         val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
         dialog.setContentView(view)
@@ -652,16 +651,17 @@ class MainActivity : AppCompatActivity() {
         pendingRestoreIndex = prefs.getInt("saved_active", 0)
         pendingRestoreData = try {
             val arr = JSONArray(json)
-            val list = mutableListOf<Pair<String, String>>()
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                list.add(obj.getString("url") to obj.getString("title"))
+            if (arr.length() == 0) null else {
+                val list = mutableListOf<Pair<String, String>>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.getJSONObject(i)
+                    list.add(obj.getString("url") to obj.getString("title"))
+                }
+                list
             }
-            list
         } catch (e: Exception) {
             null
         }
-        prefs.edit().clear().apply()
     }
 
     private fun restoreSavedTabs(data: List<Pair<String, String>>, activeIndex: Int) {
