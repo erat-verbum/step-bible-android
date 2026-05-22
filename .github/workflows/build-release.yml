@@ -35,39 +35,39 @@ jobs:
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
 
-      - name: Setup, download, and extract assets
+      - name: Setup assets
         env:
           STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_26_5_2.deb"
           JAVA_HOME: /opt/hostedtoolcache/JavaTemurin-21.0.11/x64
         run: |
           echo "Starting setup phase..."
           echo "JAVA_HOME: $JAVA_HOME"
-          echo "PATH: $PATH"
           echo "STEP_DEB_URL: $STEP_DEB_URL"
           
-          # Skip complex SDK setup for now, just ensure basic tools
-          echo "=== Setting up basic environment ==="
-          mkdir -p build-cache
+          # Create necessary directories
+          mkdir -p build-cache/downloads build-cache/step-extracted app/src/main/assets
           
-          # Setup JDK (already available)
-          echo "JDK already available at $JAVA_HOME"
+          # Download STEP package
+          echo "Downloading STEP package..."
+          curl -fSL "$STEP_DEB_URL" -o build-cache/downloads/stepbible_26_5_2.deb
           
-          # Setup basic Android tools (minimal)
-          echo "=== Setting up minimal Android tools ==="
-          mkdir -p build-cache/android-sdk/platform-tools
-          if [ ! -f build-cache/android-sdk/platform-tools/adb ]; then
-            cd build-cache/android-sdk
-            curl -fSL "https://dl.google.com/android/repository/platform-tools_r37.0.0-linux.zip" -o platform-tools.zip
-            unzip -q platform-tools.zip
-            rm platform-tools.zip
-            cd /home/runner/work/step-bible-android/step-bible-android
-          fi
+          # Extract STEP package
+          echo "Extracting STEP package..."
+          cd build-cache/step-extracted
+          ar x ../downloads/stepbible_26_5_2.deb
+          tar xf data.tar.bz2
+          cd /home/runner/work/step-bible-android/step-bible-android
           
-          echo "Setup complete, starting download phase..."
-          ./build.sh download || { echo "Download failed with exit code $?"; exit 1; }
-          echo "Download complete, starting extract phase..."
-          ./build.sh extract || { echo "Extract failed with exit code $?"; exit 1; }
-          echo "All phases completed successfully"
+          # Copy STEP files to assets
+          echo "Copying STEP files..."
+          cp -a build-cache/step-extracted/opt/step app/src/main/assets/step
+          
+          # Clean up STEP assets
+          rm -rf app/src/main/assets/step/jre app/src/main/assets/step/.install4j \
+                 app/src/main/assets/step/logs app/src/main/assets/step/runStep.sh \
+                 app/src/main/assets/step/post-install.sh 2>/dev/null || true
+          
+          echo "Setup complete"
 
       - name: Build release APK
         run: ./gradlew assembleRelease
