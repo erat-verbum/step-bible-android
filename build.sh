@@ -150,9 +150,9 @@ setup_android_sdk() {
     [[ -z "$sdkmanager" ]] && die "sdkmanager not found after extraction"
 
     chmod +x "$sdkmanager"
-    yes | "$sdkmanager" --sdk_root="$sdk_dir" \
+    echo "y" | "$sdkmanager" --sdk_root="$sdk_dir" \
         "platforms;android-34" "build-tools;34.0.0" "platform-tools" \
-        "ndk;27.0.12077973" | grep -v "^\[="
+        "ndk;27.0.12077973" | grep -v "^\[=\|Warning:" || true
     local _sdk_exit=${PIPESTATUS[0]}
     [[ $_sdk_exit -ne 0 ]] && die "sdkmanager installation failed (exit $_sdk_exit)"
 
