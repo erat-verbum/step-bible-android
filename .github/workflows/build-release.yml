@@ -43,11 +43,12 @@ jobs:
           echo "Starting setup phase..."
           echo "JAVA_HOME: $JAVA_HOME"
           echo "PATH: $PATH"
-          ./build.sh setup
+          set -x
+          ./build.sh setup || { echo "Setup failed with exit code $?"; exit 1; }
           echo "Setup complete, starting download phase..."
-          ./build.sh download
+          ./build.sh download || { echo "Download failed with exit code $?"; exit 1; }
           echo "Download complete, starting extract phase..."
-          ./build.sh extract
+          ./build.sh extract || { echo "Extract failed with exit code $?"; exit 1; }
           echo "All phases completed successfully"
 
       - name: Build release APK
