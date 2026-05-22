@@ -111,7 +111,7 @@ setup_jdk() {
     fi
     info "Downloading JDK 21..."
     mkdir -p "$JDK_DIR"
-    curl -SL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" \
+    curl -SL "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_linux_hotspot_21.0.11_10.tar.gz" \
       -o "$JDK_DIR/jdk21.tar.gz" || die "Failed to download JDK 21"
     tar -xzf "$JDK_DIR/jdk21.tar.gz" -C "$JDK_DIR/"
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
