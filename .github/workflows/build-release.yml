@@ -1,0 +1,59 @@
+name: Build Release APK
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse release tag
+        id: tag
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          DEB=$(echo "$TAG" | grep -oP '^\d+\.\d+\.\d+')
+          echo "deb_version=$DEB" >> $GITHUB_OUTPUT
+          echo "deb_underscore=$(echo "$DEB" | tr '.' '_')" >> $GITHUB_OUTPUT
+          echo "android_patch=${TAG##*.}" >> $GITHUB_OUTPUT
+
+      - name: Cache build assets
+        uses: actions/cache@v4
+        with:
+          path: build-cache
+          key: build-cache-${{ hashFiles('build.sh') }}
+
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+          echo "KEYSTORE_PATH=${{ github.workspace }}/release.keystore" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Setup, download, and extract assets
+        env:
+          STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_${{ steps.tag.outputs.deb_underscore }}.deb"
+        run: |
+          ./build.sh setup
+          ./build.sh download
+          ./build.sh extract
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: STEP Bible ${{ steps.tag.outputs.deb_version }} (build ${{ steps.tag.outputs.android_patch }})
+          body: |
+            Android release for STEP Bible ${{ steps.tag.outputs.deb_version }} (build ${{ steps.tag.outputs.android_patch }})
+            - Debian package: stepbible_${{ steps.tag.outputs.deb_underscore }}.deb
+            - arm64-v8a and x86_64 APKs
+          files: |
+            app/build/outputs/apk/release/*.apk

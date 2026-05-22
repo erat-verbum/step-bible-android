@@ -21,6 +21,7 @@ captures/
 externalNativeBuild/
 gradlew
 gradlew.bat
+release.keystore
 gradle/wrapper/gradle-wrapper.jar
 local.properties
 tmp/
