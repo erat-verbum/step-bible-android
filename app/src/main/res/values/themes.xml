@@ -7,5 +7,6 @@
         <item name="colorSecondary">@color/teal_secondary</item>
         <item name="colorSecondaryVariant">@color/teal_secondary_variant</item>
         <item name="colorOnSecondary">@android:color/black</item>
+        <item name="android:statusBarColor">@color/teal_primary_variant</item>
     </style>
 </resources>
