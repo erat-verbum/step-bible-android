@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   build:
@@ -16,10 +17,23 @@ jobs:
         run: |
           TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          DEB=$(echo "$TAG" | grep -oP '^\d+\.\d+\.\d+')
-          echo "deb_version=$DEB" >> $GITHUB_OUTPUT
-          echo "deb_underscore=$(echo "$DEB" | tr '.' '_')" >> $GITHUB_OUTPUT
-          echo "android_patch=${TAG##*.}" >> $GITHUB_OUTPUT
+          
+          # Handle both version formats
+          if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Format: 2026.01.02.1
+            DEB=$(echo "$TAG" | grep -oP '^\d+\.\d+\.\d+')
+            echo "deb_version=$DEB" >> $GITHUB_OUTPUT
+            echo "deb_underscore=$(echo "$DEB" | tr '.' '_')" >> $GITHUB_OUTPUT
+            echo "android_patch=${TAG##*.}" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            # Format: 1.0.0
+            echo "deb_version=$TAG" >> $GITHUB_OUTPUT
+            echo "deb_underscore=$(echo "$TAG" | tr '.' '_')" >> $GITHUB_OUTPUT
+            echo "android_patch=$TAG" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported tag format: $TAG" >&2
+            exit 1
+          fi
 
       - name: Cache build assets
         uses: actions/cache@v4
@@ -76,10 +90,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: STEP Bible ${{ steps.tag.outputs.deb_version }} (build ${{ steps.tag.outputs.android_patch }})
+          name: STEP Bible ${{ steps.tag.outputs.deb_version }}
           body: |
-            Android release for STEP Bible ${{ steps.tag.outputs.deb_version }} (build ${{ steps.tag.outputs.android_patch }})
+            Android release for STEP Bible ${{ steps.tag.outputs.deb_version }}
+            
+            **Features:**
+            - Multi-reference Bible extraction from shared text
+            - Support for semicolon-separated references within single passages
+            - Signed APKs for distribution
+            
+            **Technical Details:**
+            - arm64-v8a and x86_64 APK architectures
             - Debian package: stepbible_${{ steps.tag.outputs.deb_underscore }}.deb
-            - arm64-v8a and x86_64 APKs
           files: |
             app/build/outputs/apk/release/*.apk
