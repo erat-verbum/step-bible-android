@@ -12,7 +12,7 @@ Native Android wrapper for [STEP Bible](https://www.stepbible.org/) — embeds t
   <img src="docs/screenshots/main-view.png" alt="Main view" width="200"/>
   <img src="docs/screenshots/tab-overview.png" alt="Tab overview" width="200"/>
   <img src="docs/screenshots/lookup-multi.png" alt="Multi-version lookup" width="200"/>
-  <img src="docs/screenshots/dark-esv.png" alt="Dark theme" width="200"/>
+  <img src="docs/screenshots/dark-esv.png" alt="Share menu" width="200"/>
 </p>
 
 ## Table of Contents
