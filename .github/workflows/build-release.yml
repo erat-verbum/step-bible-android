@@ -37,7 +37,7 @@ jobs:
 
       - name: Setup, download, and extract assets
         env:
-          STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_${{ steps.tag.outputs.deb_underscore }}.deb"
+          STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_26_5_2.deb"
         run: |
           ./build.sh setup
           ./build.sh download
