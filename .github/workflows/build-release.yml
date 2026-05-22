@@ -44,14 +44,18 @@ jobs:
           echo "JAVA_HOME: $JAVA_HOME"
           echo "PATH: $PATH"
           
-          # Run setup with full error capture
-          echo "=== Running setup phase ==="
-          if ./build.sh setup; then
+          # Capture full setup output
+          echo "=== Running setup phase (capturing output) ==="
+          ./build.sh setup 2>&1 | tee /tmp/setup-output.log
+          setup_exit=${PIPESTATUS[0]}
+          echo "Setup exit code: $setup_exit"
+          
+          if [ $setup_exit -eq 0 ]; then
             echo "Setup completed successfully"
           else
-            echo "Setup failed with exit code $?"
+            echo "Setup failed with exit code $setup_exit"
             echo "=== Setup output ==="
-            cat /tmp/setup.log 2>/dev/null || echo "No setup log found"
+            cat /tmp/setup-output.log
             exit 1
           fi
           
