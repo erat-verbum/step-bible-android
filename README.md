@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-android-3DDC84.svg)](https://www.android.com)
 [![API](https://img.shields.io/badge/minSdk-26-8A2BE2.svg)](app/build.gradle.kts)
+[![Target](https://img.shields.io/badge/targetSdk-34-8A2BE2.svg)](app/build.gradle.kts)
 [![Kotlin](https://img.shields.io/badge/kotlin-1.9-7F52FF.svg)](app/build.gradle.kts)
 
 Native Android wrapper for [STEP Bible](https://www.stepbible.org/) — embeds the full STEP Bible server (Jetty + JVM) inside the app and renders it through a tabbed WebView UI.
@@ -13,6 +14,27 @@ Native Android wrapper for [STEP Bible](https://www.stepbible.org/) — embeds t
   <img src="docs/screenshots/lookup-multi.png" alt="Multi-version lookup" width="200"/>
   <img src="docs/screenshots/dark-esv.png" alt="Dark theme" width="200"/>
 </p>
+
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Build](#build)
+- [Tests](#tests)
+- [Project structure](#project-structure)
+- [Known limitations](#known-limitations)
+- [Contributing](#contributing)
+- [License](#license)
+- [Acknowledgments](#acknowledgments)
+
+## Requirements
+
+- **Android 8.0+** (API 26, minSdk) — Android 14 (API 34, targetSdk)
+- **~250 MB** free storage for the bundled JRE and STEP Bible data (extracted on first launch)
+- **Internet** only for initial downloads — the app works fully offline after setup
+- **Permissions:** `INTERNET` (local server communication)
 
 ## Features
 
@@ -25,6 +47,18 @@ Native Android wrapper for [STEP Bible](https://www.stepbible.org/) — embeds t
 - **Navigation controls** — Back/forward with long-press history popup, reload
 - **File downloads** — Download via Android `DownloadManager`
 - **Multi-architecture** — Ships JRE for both `arm64-v8a` and `x86_64`
+
+## Tech stack
+
+| Layer | Technology |
+|-------|-----------|
+| Language | Kotlin + C (JNI stub) |
+| UI | Android Views, WebView, Material Components |
+| Build | Gradle Kotlin DSL, CMake (native) |
+| Server | Embedded Jetty inside JVM 17 (PojavLauncher JRE) |
+| JavaScript | Kotlin `@JavascriptInterface` bridge |
+| Minification | R8 / ProGuard |
+| Native libs | CMake + NDK 27 |
 
 ## Architecture
 
@@ -51,6 +85,7 @@ The C JNI stub (`app/src/main/jni/step_jvm_stub.c`) loads `libjvm.so` from the b
 
 - Linux (or macOS with modifications)
 - ~4 GB free disk space (JDK, Android SDK, JRE, STEP data)
+- Android 8.0+ emulator or device for testing
 
 ### Quick build
 
@@ -84,6 +119,14 @@ This downloads **JDK 21**, **Android SDK**, **JRE 17** (PojavLauncher), the late
 ./build.sh clean
 ```
 
+## Tests
+
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+Unit tests cover Bible reference parsing (`parseReference`, `extractBibleReference`) and URL rewriting (`rebuildUrl`). Tests are written with JUnit 4 and located in `app/src/test/`.
+
 ## Project structure
 
 ```
@@ -91,20 +134,38 @@ This downloads **JDK 21**, **Android SDK**, **JRE 17** (PojavLauncher), the late
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/eratverbum/stepbible/
-│   │   │   │   ├── MainActivity.kt          # Tabbed WebView browser UI
-│   │   │   │   ├── StepServerService.kt     # Foreground service for server
-│   │   │   │   ├── JVMStub.kt              # Native JVM loader binding
-│   │   │   │   └── TarExtractor.kt         # First-launch asset extraction
+│   │   │   │   ├── MainActivity.kt          # Tabbed WebView browser UI + server lifecycle
+│   │   │   │   ├── JVMStub.kt              # Native JVM loader binding (JNI)
+│   │   │   │   ├── TarExtractor.kt         # First-launch asset extraction from APK
+│   │   │   │   └── ServerState.kt           # Global server state holder
 │   │   │   ├── jni/
-│   │   │   │   └── step_jvm_stub.c         # C JNI: loads libjvm, starts Jetty
-│   │   │   ├── res/                        # Layouts, themes, drawables
+│   │   │   │   ├── step_jvm_stub.c         # C JNI: loads libjvm, starts Jetty
+│   │   │   │   └── CMakeLists.txt
+│   │   │   ├── res/                        # Layouts, themes, drawables, colors
 │   │   │   └── AndroidManifest.xml
-│   │   └── build.gradle.kts
+│   │   └── test/                           # Unit tests (JUnit 4)
+│   └── build.gradle.kts
 ├── step-bootstrap/                          # Java bootstrap for STEP server
 ├── build.sh                                 # One-click build script
 ├── docs/screenshots/                        # App screenshots
 └── README.md
 ```
+
+## Known limitations
+
+- **Only ASCII book names** — The `extractBibleReference` regex matches `[A-Z][a-z]+`, so non-ASCII (e.g., "Génesis") and all-lowercase (e.g., "john 3:16") book names are not recognized
+- **First reference only** — Only the first Bible reference in the shared text is extracted; additional references are ignored
+- **Multi-word book names** — Books with internal lowercase words (e.g., "Song of Solomon") may produce inaccurate results from `extractBibleReference`
+- **No server restart** — If the embedded JVM crashes while the app is in the foreground, the app must be restarted (closing the process)
+- **Single-architecture build** — Both `arm64-v8a` and `x86_64` JREs are shipped (not armeabi-v7a)
+
+## Contributing
+
+Bug reports and pull requests are welcome. When reporting issues, please include:
+
+- Android version and device/emulator model
+- Steps to reproduce
+- Relevant logcat output
 
 ## License
 
