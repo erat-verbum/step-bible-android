@@ -43,6 +43,7 @@ jobs:
           echo "Starting setup phase..."
           echo "JAVA_HOME: $JAVA_HOME"
           echo "PATH: $PATH"
+          echo "STEP_DEB_URL: $STEP_DEB_URL"
           
           # Skip complex SDK setup for now, just ensure basic tools
           echo "=== Setting up basic environment ==="
