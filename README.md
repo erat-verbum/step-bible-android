@@ -154,7 +154,6 @@ Unit tests cover Bible reference parsing (`parseReference`, `extractBibleReferen
 ## Known limitations
 
 - **Only ASCII book names** — The `extractBibleReference` regex matches `[A-Z][a-z]+`, so non-ASCII (e.g., "Génesis") and all-lowercase (e.g., "john 3:16") book names are not recognized
-- **First reference only** — Only the first Bible reference in the shared text is extracted; additional references are ignored
 - **Multi-word book names** — Books with internal lowercase words (e.g., "Song of Solomon") may produce inaccurate results from `extractBibleReference`
 - **No server restart** — If the embedded JVM crashes while the app is in the foreground, the app must be restarted (closing the process)
 - **Single-architecture build** — Both `arm64-v8a` and `x86_64` JREs are shipped (not armeabi-v7a)

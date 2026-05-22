@@ -829,18 +829,19 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val isMulti = cn.endsWith(".ShareLookupMulti")
-        val cleaned = extractBibleReference(Html.fromHtml(sharedText, Html.FROM_HTML_MODE_COMPACT).toString())
-        if (cleaned == null) {
+        val refs = extractBibleReference(Html.fromHtml(sharedText, Html.FROM_HTML_MODE_COMPACT).toString())
+        if (refs.isEmpty()) {
             Toast.makeText(this, "No Bible reference found", Toast.LENGTH_SHORT).show()
             return
         }
-        val parsed = parseReference(cleaned)
+        val combined = refs.joinToString(", ")
+        val parsed = parseReference(combined)
         if (parsed.isBlank()) {
             Toast.makeText(this, "No Bible reference found", Toast.LENGTH_SHORT).show()
             return
         }
         val encodedRef = Uri.encode(parsed).replace("@", "%40")
-        Log.i(TAG, "Share: cleaned='$cleaned' -> '$parsed'")
+        Log.i(TAG, "Share: refs=$refs -> combined='$combined' -> parsed='$parsed'")
         val port = ServerState.port
         val q = if (isMulti) {
             "version=ESV@version=SBLG@version=THOT@reference=$encodedRef"
@@ -917,13 +918,13 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-internal fun extractBibleReference(text: String): String? {
+internal fun extractBibleReference(text: String): List<String> {
     var t = text
     t = t.replace(Regex("https?://\\S+"), " ")
     t = t.replace(Regex("[\"'`\u201C\u201D\u2018\u2019]"), " ")
     t = t.replace(Regex("\\s+"), " ").trim()
-    val match = Regex("(?:\\d+(?:\\s*(?:st|nd|rd|th))?\\s+)?[A-Z][a-z]+\\.?\\s*\\d+(?::\\d+(?:[-–—,]\\d+)*)?").find(t)
-    return match?.value
+    val regex = Regex("(?:\\d+(?:\\s*(?:st|nd|rd|th))?\\s+)?[A-Z][a-z]+\\.?\\s*\\d+(?::\\d+(?:[-–—,]\\d+)*(?:;\\d+(?::\\d+(?:[-–—,]\\d+)*)?)*)?")
+    return regex.findAll(t).map { it.value }.toList()
 }
 
 internal fun parseReference(input: String): String {
