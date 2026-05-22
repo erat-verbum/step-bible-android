@@ -38,8 +38,11 @@ jobs:
       - name: Setup, download, and extract assets
         env:
           STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_26_5_2.deb"
+          JAVA_HOME: /opt/hostedtoolcache/JavaTemurin-21.0.11/x64
         run: |
           echo "Starting setup phase..."
+          echo "JAVA_HOME: $JAVA_HOME"
+          echo "PATH: $PATH"
           ./build.sh setup
           echo "Setup complete, starting download phase..."
           ./build.sh download
