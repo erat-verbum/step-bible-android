@@ -4,13 +4,18 @@ import android.app.Dialog
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import androidx.core.content.ContextCompat
 import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
+import android.text.Html
+import android.util.Log
 import android.view.View
 import android.view.Window
 import android.view.ViewGroup
@@ -34,8 +39,10 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.ZipFile
 
 class MainActivity : AppCompatActivity() {
 
@@ -51,6 +58,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var loadingSpinner: ProgressBar
     private lateinit var loadingText: TextView
     private lateinit var retryButton: Button
+    @Volatile private lateinit var appDir: File
     private val tabs = mutableListOf<TabInfo>()
     private var currentIndex = -1
     private var closingTab = false
@@ -59,6 +67,8 @@ class MainActivity : AppCompatActivity() {
     private var pendingShareUrl: String? = null
     private var pendingRestoreData: List<Pair<String, String>>? = null
     private var pendingRestoreIndex = 0
+    private var serverThread: Thread? = null
+    private var serverPollThread: Thread? = null
 
     private data class TabInfo(
         val webView: WebView,
@@ -69,9 +79,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            WebView.enableSlowWholeDocumentDraw()
-        }
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -106,31 +113,48 @@ class MainActivity : AppCompatActivity() {
 
         handleShareIntent(intent)
         loadSavedTabState()
-        startServerService()
+        appDir = filesDir
+        startServer()
     }
 
-    private fun startServerService() {
+    private fun startServer() {
+        if (!serverFailed && (serverThread?.isAlive == true || ServerState.jvmStarted)) {
+            waitForServer()
+            return
+        }
+        ServerState.jvmStarted = false
         serverFailed = false
         retryButton.visibility = View.GONE
         loadingSpinner.visibility = View.VISIBLE
         loadingText.text = getString(R.string.server_starting)
-        val intent = Intent(this, StepServerService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
+
+        ServerState.port = serverPort
+
+        if (serverThread?.isAlive == true || ServerState.jvmStarted) {
+            waitForServer()
+            return
         }
+
+        serverPollThread?.interrupt()
+        serverThread = Thread {
+            try {
+                setupAndStartServer()
+            } catch (e: Exception) {
+                Log.e(TAG, "Server failed", e)
+            }
+        }.apply { isDaemon = true }
+        serverThread?.start()
         waitForServer()
     }
 
     private fun retry() {
-        startServerService()
+        startServer()
     }
 
     private fun waitForServer() {
-        Thread {
+        serverPollThread = Thread {
             var retries = 0
-            while (retries < 60) {
+            while (retries < 60 && !Thread.currentThread().isInterrupted) {
                 var conn: HttpURLConnection? = null
                 try {
                     val url = URL("http://127.0.0.1:${ServerState.port}/")
@@ -146,23 +170,31 @@ class MainActivity : AppCompatActivity() {
                 } finally {
                     conn?.disconnect()
                 }
-                Thread.sleep(1000)
+                try {
+                    Thread.sleep(1000)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    break
+                }
                 retries++
             }
-            runOnUiThread { onServerFailed() }
-        }.start()
+            if (!Thread.currentThread().isInterrupted) {
+                runOnUiThread { onServerFailed() }
+            }
+        }
+        serverPollThread?.start()
     }
 
     private fun onServerReady() {
+        if (isFinishing || isDestroyed) return
         loadingSpinner.visibility = View.GONE
         loadingText.visibility = View.GONE
         retryButton.visibility = View.GONE
         toolbar.visibility = View.VISIBLE
         tabBar.visibility = View.VISIBLE
-        updateNotificationServerRunning()
         when {
             pendingShareUrl != null -> {
-                createTab(pendingShareUrl!!)
+                createTab(rebuildUrl(pendingShareUrl!!))
                 pendingShareUrl = null
                 pendingRestoreData = null
             }
@@ -181,15 +213,175 @@ class MainActivity : AppCompatActivity() {
         retryButton.visibility = View.VISIBLE
     }
 
-    private fun updateNotificationServerRunning() {
-        val intent = Intent(this, StepServerService::class.java).apply {
-            action = "SERVER_READY"
+    private fun setupAndStartServer() {
+        var retries = 0
+        while (retries < MAX_RETRIES) {
+            val stepDir = File(appDir, "step")
+            val jreDir = File(appDir, "jre")
+
+            if (needExtraction(appDir)) {
+                try {
+                    extractAssets(appDir)
+                    markExtractionComplete(appDir)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Extraction failed", e)
+                    return
+                }
+            }
+
+            val classpath = buildClasspath(stepDir)
+            val webappDir = File(stepDir, "step-web")
+
+            ServerState.port = serverPort
+
+            if (!JVMStub.ensureLoaded()) {
+                Log.e(TAG, "Failed to load native library")
+                return
+            }
+
+            ServerState.jvmStarted = true
+
+            Log.i(TAG, "Starting JVM...")
+            var ret = -1
+            try {
+                ret = JVMStub.startServer(
+                    jreDir = jreDir.absolutePath,
+                    classPath = classpath,
+                    warPath = webappDir.absolutePath,
+                    port = serverPort
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "JVM start threw", e)
+                ServerState.jvmStarted = false
+                return
+            }
+
+            if (ret == 0) {
+                Log.i(TAG, "JVM exited normally")
+                ServerState.jvmStarted = false
+                return
+            }
+            Log.e(TAG, "JVM exited with error: $ret (attempt ${retries + 1})")
+            retries++
+            if (retries < MAX_RETRIES) Thread.sleep(1000)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
+        ServerState.jvmStarted = false
+    }
+
+    private fun buildClasspath(stepDir: File): String {
+        return stepDir.listFiles { f -> f.name.endsWith(".jar") }
+            ?.sortedBy { it.name }
+            ?.joinToString(":") { it.absolutePath }
+            ?: ""
+    }
+
+    private fun detectJreAbi(): String {
+        val abi = Build.SUPPORTED_ABIS.firstOrNull()
+            ?: throw RuntimeException("No supported ABIs found")
+        return when {
+            abi.startsWith("arm64") -> "arm64-v8a"
+            abi.startsWith("armeabi") -> "armeabi-v7a"
+            abi.startsWith("x86_64") -> "x86_64"
+            abi.startsWith("x86") -> "x86"
+            else -> throw RuntimeException("Unsupported ABI: $abi")
+        }
+    }
+
+    private fun extractAssets(appDir: File) {
+        Log.i(TAG, "Extracting assets (first launch)...")
+        val jreDir = File(appDir, "jre")
+        val jreAbi = detectJreAbi()
+
+        val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
+        ZipFile(apkPath).use { zip ->
+            val prefixJre = "assets/jre/$jreAbi/"
+            val entries = zip.entries()
+            while (entries.hasMoreElements()) {
+                val entry = entries.nextElement()
+                val name = entry.name
+                if (name.startsWith(prefixJre) && !entry.isDirectory) {
+                    val relPath = name.removePrefix(prefixJre)
+                    val dest = File(jreDir, relPath)
+                    dest.parentFile?.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        dest.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+            }
+        }
+
+        Log.i(TAG, "Extracting step.tar...")
+        TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
+        linkJswordData(appDir, File(appDir, "step"))
+
+        Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
+    }
+
+    private fun linkJswordData(appDir: File, stepDir: File) {
+        val jswordHome = File(appDir, ".jsword")
+        val jswordSource = File(stepDir, "homes/jsword")
+        val swordHome = File(stepDir, "homes/sword")
+        if (!jswordSource.exists()) return
+        jswordHome.mkdirs()
+        try {
+            val useSymlinks = try {
+                val test = File(jswordHome, ".symtest")
+                java.nio.file.Files.createSymbolicLink(test.toPath(), jswordHome.toPath())
+                java.nio.file.Files.delete(test.toPath())
+                true
+            } catch (_: Exception) { false }
+
+            linkOrCopy("modules", File(swordHome, "modules"), File(jswordHome, "modules"), useSymlinks)
+
+            val modsDest = File(jswordHome, "mods.d")
+            val modsSource = File(swordHome, "mods.d")
+            if (modsSource.exists()) {
+                modsDest.mkdirs()
+                modsSource.listFiles { f -> f.name.endsWith(".conf") }?.forEach { conf ->
+                    conf.copyTo(File(modsDest, conf.name), overwrite = true)
+                }
+                Log.i(TAG, "Copied mods.d to jsword")
+            }
+
+            linkOrCopy("lucene/Sword", File(jswordSource, "lucene/Sword"), File(jswordHome, "lucene/Sword"), useSymlinks)
+            linkOrCopy("step/entities", File(jswordSource, "step/entities"), File(jswordHome, "step/entities"), useSymlinks)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to link jsword data", e)
+        }
+    }
+
+    private fun linkOrCopy(label: String, source: File, dest: File, useSymlinks: Boolean) {
+        if (!source.exists()) return
+        dest.parentFile?.mkdirs()
+        if (useSymlinks)
+            java.nio.file.Files.createSymbolicLink(dest.toPath(), source.toPath().toAbsolutePath())
+        else
+            source.copyRecursively(dest)
+        Log.i(TAG, if (useSymlinks) "Linked $label to jsword" else "Copied $label to jsword")
+    }
+
+    private fun needExtraction(appDir: File): Boolean {
+        val marker = File(appDir, ".extraction-complete")
+        if (!marker.exists()) return true
+        val verFile = File(appDir, ".app-version")
+        val storedVersion = try { verFile.readText().trim().toLong() } catch (_: Exception) { 0L }
+        return storedVersion != getAppVersionCode()
+    }
+
+    private fun getAppVersionCode(): Long {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0)).longVersionCode
         } else {
-            startService(intent)
+            @Suppress("DEPRECATION")
+            packageManager.getPackageInfo(packageName, 0).longVersionCode
         }
+    }
+
+    private fun markExtractionComplete(appDir: File) {
+        try {
+            File(appDir, ".extraction-complete").createNewFile()
+            File(appDir, ".app-version").writeText(getAppVersionCode().toString())
+        } catch (_: Exception) {}
     }
 
     private val chromeClient = object : WebChromeClient() {
@@ -206,7 +398,7 @@ class MainActivity : AppCompatActivity() {
             transport.setWebView(newTab)
             resultMsg?.obj = transport
             resultMsg?.sendToTarget()
-            addTabView(newTab, "")
+            addTabView(newTab)
             return true
         }
 
@@ -222,6 +414,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        @Suppress("DEPRECATION")
         override fun onShowFileChooser(
             webView: WebView?,
             filePathCallback: ValueCallback<Array<Uri>>?,
@@ -238,7 +431,7 @@ class MainActivity : AppCompatActivity() {
         val wv = createConfiguredWebView()
         wv.webChromeClient = chromeClient
 
-        addTabView(wv, url)
+        addTabView(wv)
         wv.loadUrl(url)
         return wv
     }
@@ -252,11 +445,21 @@ class MainActivity : AppCompatActivity() {
         wv.settings.apply {
             javaScriptEnabled = true
             setSupportMultipleWindows(true)
-            javaScriptCanOpenWindowsAutomatically = true
+            javaScriptCanOpenWindowsAutomatically = false
+            allowFileAccess = false
+            allowContentAccess = false
+            @Suppress("DEPRECATION")
+            allowFileAccessFromFileURLs = false
+            @Suppress("DEPRECATION")
+            allowUniversalAccessFromFileURLs = false
             domStorageEnabled = true
             builtInZoomControls = true
             displayZoomControls = false
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                try {
+                    wv.javaClass.getMethod("setAlgorithmicDarkeningAllowed", Boolean::class.javaPrimitiveType).invoke(wv, true)
+                } catch (_: Exception) {}
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 @Suppress("DEPRECATION")
                 forceDark = WebSettings.FORCE_DARK_AUTO
             }
@@ -264,14 +467,14 @@ class MainActivity : AppCompatActivity() {
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
-                val url = request?.url?.toString() ?: return false
+                val uri = request?.url ?: return false
                 val port = ServerState.port
-                if (url.startsWith("http://127.0.0.1:$port") ||
-                    url.startsWith("http://localhost:$port")) {
-                    val rest = url.removePrefix("http://127.0.0.1:$port")
-                        .removePrefix("http://localhost:$port")
-                    if (rest.isEmpty() || rest[0] == '/' || rest[0] == '#' || rest[0] == '?')
-                        return false
+                if (uri.host != null && uri.host in listOf("127.0.0.1", "localhost") && uri.port == port)
+                    return false
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri))
+                } catch (_: Exception) {
+                    Log.w(TAG, "No activity to handle URI: $uri")
                 }
                 return true
             }
@@ -280,7 +483,7 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 if (url?.contains("version=ESV") == true) {
-                    android.util.Log.i("STEP", "Page started: $url")
+                    Log.i(TAG, "Page started: $url")
                 }
             }
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -290,11 +493,12 @@ class MainActivity : AppCompatActivity() {
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
             val dlRequest = DownloadManager.Request(Uri.parse(url))
             dlRequest.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            dlRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, url.substringAfterLast('/'))
-            getSystemService(Context.DOWNLOAD_SERVICE)?.let { dm ->
-                (dm as DownloadManager).enqueue(dlRequest)
-                Toast.makeText(this, "Download started", Toast.LENGTH_SHORT).show()
-            }
+            val filename = url.substringAfterLast('/').substringBefore('?').substringBefore('#').takeIf { it.isNotBlank() } ?: "download"
+            @Suppress("DEPRECATION")
+            dlRequest.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+            val dm = getSystemService(DownloadManager::class.java)
+            dm?.enqueue(dlRequest)
+            Toast.makeText(this, "Download started", Toast.LENGTH_SHORT).show()
         }
         return wv
     }
@@ -316,13 +520,13 @@ class MainActivity : AppCompatActivity() {
         val dialog = Dialog(this, R.style.Theme_STEPBible)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-        dialog.window?.statusBarColor = 0xFF1F768F.toInt()
+        dialog.window?.statusBarColor = getColor(R.color.teal_primary)
         val view = layoutInflater.inflate(R.layout.dialog_tab_overview, null)
         dialog.setContentView(view)
 
         val grid = view.findViewById<GridView>(R.id.tab_grid)
         val countView = view.findViewById<TextView>(R.id.tab_count)
-        countView.text = "Tabs (${tabs.size})"
+        countView.text = getString(R.string.tabs_format, tabs.size)
         view.findViewById<ImageButton>(R.id.btn_close_overview).setOnClickListener { dialog.dismiss() }
 
         val thumbWidth = (resources.displayMetrics.widthPixels / 2) - 24
@@ -363,6 +567,8 @@ class MainActivity : AppCompatActivity() {
                     val outW = (w * scale).toInt().coerceAtLeast(1)
                     val outH = (h * scale).toInt().coerceAtLeast(1)
 
+                    val old = thumb.drawable as? BitmapDrawable
+                    old?.bitmap?.recycle()
                     val bmp = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
                     val canvas = Canvas(bmp)
                     canvas.scale(scale, scale)
@@ -436,9 +642,7 @@ class MainActivity : AppCompatActivity() {
         val wv = tabs[currentIndex].webView
         if (wv.canGoBack()) {
             wv.goBack()
-            return
         }
-        wv.evaluateJavascript("window.history.back()", ValueCallback { _ -> })
     }
 
     private fun goForward() {
@@ -446,11 +650,6 @@ class MainActivity : AppCompatActivity() {
         val wv = tabs[currentIndex].webView
         if (wv.canGoForward()) {
             wv.goForward()
-        } else {
-            wv.evaluateJavascript(
-                "if(window.history.length>1)window.history.forward();",
-                null
-            )
         }
     }
 
@@ -460,7 +659,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addTabView(wv: WebView, @Suppress("UNUSED_PARAMETER") url: String) {
+    private fun addTabView(wv: WebView) {
         val tabView = createTabView("Loading...")
 
         container.addView(wv)
@@ -533,6 +732,8 @@ class MainActivity : AppCompatActivity() {
         val tab = tabs[index]
         tab.scrollListener?.let { tab.tabView.removeOnLayoutChangeListener(it) }
         container.removeView(tab.webView)
+        tab.webView.stopLoading()
+        tab.webView.onPause()
         tab.webView.destroy()
         tabBar.removeView(tab.tabView)
         tabs.removeAt(index)
@@ -550,12 +751,13 @@ class MainActivity : AppCompatActivity() {
             val titleView = tab.tabView.findViewById<TextView>(R.id.tab_title)
             val indicator = tab.tabView.findViewById<View>(R.id.tab_indicator)
             val isSelected = i == currentIndex
-            titleView.setTextColor(if (isSelected) android.graphics.Color.WHITE else 0xB3FFFFFF.toInt())
+            titleView.setTextColor(if (isSelected) android.graphics.Color.WHITE else ContextCompat.getColor(this, R.color.tab_title_inactive))
             indicator.visibility = if (isSelected) View.VISIBLE else View.GONE
             tab.tabView.findViewById<ImageView>(R.id.tab_close).alpha = if (isSelected) 1.0f else 0.5f
         }
     }
 
+    @Deprecated("Deprecated in Java", ReplaceWith("onBackPressedDispatcher.onBackPressed()"))
     override fun onBackPressed() {
         if (currentIndex in tabs.indices) {
             val wv = tabs[currentIndex].webView
@@ -563,8 +765,6 @@ class MainActivity : AppCompatActivity() {
                 wv.goBack()
                 return
             }
-            wv.evaluateJavascript("window.history.back()", null)
-            return
         }
         super.onBackPressed()
     }
@@ -575,6 +775,7 @@ class MainActivity : AppCompatActivity() {
         handleShareIntent(intent)
     }
 
+    @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
             val result = if (resultCode == RESULT_OK && data?.data != null) {
@@ -592,7 +793,23 @@ class MainActivity : AppCompatActivity() {
         saveTabState()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("pending_share_url", pendingShareUrl)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        if (savedInstanceState.containsKey("pending_share_url")) {
+            pendingShareUrl = savedInstanceState.getString("pending_share_url")
+        }
+    }
+
     override fun onDestroy() {
+        serverThread?.interrupt()
+        serverThread = null
+        serverPollThread?.interrupt()
+        serverPollThread = null
         for (tab in tabs) {
             container.removeView(tab.webView)
             tab.webView.destroy()
@@ -606,12 +823,24 @@ class MainActivity : AppCompatActivity() {
         val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             ?: intent.getClipData()?.getItemAt(0)?.text?.toString()
             ?: return
-        val cn = intent.component?.className ?: return
+        val cn = intent.component?.className
+        if (cn == null) {
+            Toast.makeText(this, "No Bible reference found", Toast.LENGTH_SHORT).show()
+            return
+        }
         val isMulti = cn.endsWith(".ShareLookupMulti")
-        val cleaned = extractBibleReference(sharedText)
+        val cleaned = extractBibleReference(Html.fromHtml(sharedText, Html.FROM_HTML_MODE_COMPACT).toString())
+        if (cleaned == null) {
+            Toast.makeText(this, "No Bible reference found", Toast.LENGTH_SHORT).show()
+            return
+        }
         val parsed = parseReference(cleaned)
-        val encodedRef = Uri.encode(parsed)
-        android.util.Log.i("STEP", "Share: text='$sharedText' cleaned='$cleaned' -> '$parsed'")
+        if (parsed.isBlank()) {
+            Toast.makeText(this, "No Bible reference found", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val encodedRef = Uri.encode(parsed).replace("@", "%40")
+        Log.i(TAG, "Share: cleaned='$cleaned' -> '$parsed'")
         val port = ServerState.port
         val q = if (isMulti) {
             "version=ESV@version=SBLG@version=THOT@reference=$encodedRef"
@@ -620,7 +849,7 @@ class MainActivity : AppCompatActivity() {
         }
         val options = if (isMulti) "HVUG" else "VUGH"
         val url = "http://127.0.0.1:$port/?q=$q&options=$options&display=INTERLEAVED"
-        android.util.Log.d("STEP", "Share URL: $url")
+        Log.d(TAG, "Share URL: $url")
         if (toolbar.visibility == View.VISIBLE) {
             createTab(url)
         } else {
@@ -630,22 +859,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveTabState() {
         if (tabBar.visibility != View.VISIBLE) return
+        var remapped = 0
         val json = JSONArray().apply {
-            for (tab in tabs) {
+            for ((i, tab) in tabs.withIndex()) {
                 val url = tab.webView.url ?: continue
+                if (i == currentIndex) remapped = length()
                 put(JSONObject().apply {
                     put("url", url)
                     put("title", tab.title)
                 })
             }
         }.toString()
+        @Suppress("DEPRECATION")
         getPreferences(Context.MODE_PRIVATE).edit()
             .putString("saved_tabs", json)
-            .putInt("saved_active", currentIndex)
+            .putInt("saved_active", remapped)
             .apply()
     }
 
     private fun loadSavedTabState() {
+        @Suppress("DEPRECATION")
         val prefs = getPreferences(Context.MODE_PRIVATE)
         val json = prefs.getString("saved_tabs", null) ?: return
         pendingRestoreIndex = prefs.getInt("saved_active", 0)
@@ -674,28 +907,23 @@ class MainActivity : AppCompatActivity() {
         showTab(activeIndex.coerceIn(0, tabs.size - 1))
     }
 
-    private fun rebuildUrl(saved: String): String {
-        val port = ServerState.port
-        if (saved.startsWith("http://") || saved.startsWith("https://")) {
-            return saved
-                .replace(Regex("http://127\\.0\\.0\\.1:\\d+"), "http://127.0.0.1:$port")
-                .replace(Regex("http://localhost:\\d+"), "http://localhost:$port")
-        }
-        return "http://127.0.0.1:$port$saved"
-    }
+    private fun rebuildUrl(saved: String): String = rebuildUrl(saved, ServerState.port)
 
     companion object {
+        private const val TAG = "STEP"
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
+        private const val MAX_RETRIES = 2
+        private const val serverPort = 8989
     }
 }
 
-internal fun extractBibleReference(text: String): String {
+internal fun extractBibleReference(text: String): String? {
     var t = text
     t = t.replace(Regex("https?://\\S+"), " ")
-    t = t.replace(Regex("[\"\"'`\u201C\u201D\u2018\u2019]"), " ")
+    t = t.replace(Regex("[\"'`\u201C\u201D\u2018\u2019]"), " ")
     t = t.replace(Regex("\\s+"), " ").trim()
     val match = Regex("(?:\\d+(?:\\s*(?:st|nd|rd|th))?\\s+)?[A-Z][a-z]+\\.?\\s*\\d+(?::\\d+(?:[-–—,]\\d+)*)?").find(t)
-    return match?.value ?: t
+    return match?.value
 }
 
 internal fun parseReference(input: String): String {
@@ -716,4 +944,18 @@ internal fun parseReference(input: String): String {
     p = p.replace(Regex(",\\s*,"), ",")
     p = p.replace(Regex("\\s*,\\s*"), ",")
     return p
+}
+
+internal fun rebuildUrl(saved: String, port: Int = ServerState.port): String {
+    if (saved.startsWith("http://") || saved.startsWith("https://")) {
+        return saved
+            .replace(Regex("http://127\\.0\\.0\\.1:\\d+"), "http://127.0.0.1:$port")
+            .replace(Regex("http://localhost:\\d+"), "http://localhost:$port")
+    }
+    return "http://127.0.0.1:$port$saved"
+}
+
+object ServerState {
+    @Volatile var port = 8989
+    @Volatile var jvmStarted = false
 }

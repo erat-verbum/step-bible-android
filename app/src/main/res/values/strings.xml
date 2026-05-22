@@ -2,11 +2,8 @@
 <resources>
     <string name="app_name">STEP Bible</string>
     <string name="server_starting">Starting STEP Bible server...</string>
-    <string name="server_started">STEP Bible is ready</string>
     <string name="server_failed">Failed to start STEP Bible</string>
-    <string name="server_running">STEP Bible server running</string>
     <string name="tab_close">Close tab</string>
-    <string name="channel_server">STEP Server</string>
     <string name="retry">Retry</string>
     <string name="back">Back</string>
     <string name="forward">Forward</string>
@@ -14,4 +11,7 @@
     <string name="new_tab">New tab</string>
     <string name="share_lookup_esv">Look up in ESV</string>
     <string name="share_lookup_multi">Look up in ESV, SBLG, THOT</string>
+    <string name="tab_overview">Tab overview</string>
+    <string name="close">Close</string>
+    <string name="tabs_format">Tabs (%d)</string>
 </resources>

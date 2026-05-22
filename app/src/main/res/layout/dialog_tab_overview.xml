@@ -25,9 +25,9 @@
             android:id="@+id/btn_close_overview"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:src="@drawable/ic_close"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
+            android:contentDescription="@string/close"
             android:scaleType="center" />
     </LinearLayout>
 

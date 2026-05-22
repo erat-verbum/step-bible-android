@@ -4,5 +4,11 @@
     <color name="tab_preview_bg">#F5F5F5</color>
     <color name="tab_preview_stroke">#CCCCCC</color>
     <color name="tab_preview_overlay">#CC333333</color>
+    <color name="tab_close_overlay">#66000000</color>
     <color name="dialog_bg">@android:color/white</color>
+    <color name="teal_primary">#FF1F768F</color>
+    <color name="teal_primary_variant">#FF13596D</color>
+    <color name="teal_secondary">#FF03DAC5</color>
+    <color name="teal_secondary_variant">#FF018786</color>
+    <color name="tab_title_inactive">#B3FFFFFF</color>
 </resources>

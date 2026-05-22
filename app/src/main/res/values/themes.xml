@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.STEPBible" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <item name="colorPrimary">#1F768F</item>
-        <item name="colorPrimaryVariant">#13596D</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="colorSecondary">#03DAC5</item>
-        <item name="colorSecondaryVariant">#018786</item>
-        <item name="colorOnSecondary">#000000</item>
+        <item name="colorPrimary">@color/teal_primary</item>
+        <item name="colorPrimaryVariant">@color/teal_primary_variant</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/teal_secondary</item>
+        <item name="colorSecondaryVariant">@color/teal_secondary_variant</item>
+        <item name="colorOnSecondary">@android:color/black</item>
     </style>
 </resources>

@@ -19,7 +19,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_arrow_back"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Back"
+            android:contentDescription="@string/back"
             android:scaleType="center" />
 
         <ImageButton
@@ -28,7 +28,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_arrow_forward"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Forward"
+            android:contentDescription="@string/forward"
             android:scaleType="center" />
 
         <ImageButton
@@ -37,7 +37,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_refresh"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Reload"
+            android:contentDescription="@string/reload"
             android:scaleType="center" />
 
         <View
@@ -51,7 +51,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_add"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="New tab"
+            android:contentDescription="@string/new_tab"
             android:scaleType="center" />
 
         <ImageButton
@@ -60,7 +60,7 @@
             android:layout_height="40dp"
             android:src="@drawable/ic_grid_view"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Tab overview"
+            android:contentDescription="@string/tab_overview"
             android:scaleType="center" />
     </LinearLayout>
 
@@ -108,7 +108,7 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center"
             android:layout_marginTop="120dp"
-            android:text="Retry"
+            android:text="@string/retry"
             android:visibility="gone" />
     </FrameLayout>
 

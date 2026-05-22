@@ -9,6 +9,9 @@ import java.io.File;
 import java.nio.file.Files;
 
 public class StepServerLauncher {
+    private static final String DEFAULT_WAR_PATH = "step-web";
+    private static final String DEFAULT_PORT = "8989";
+
     public static void main(String[] args) {
         String home = System.getProperty("user.home",
             "/data/data/com.eratverbum.stepbible/files");
@@ -37,14 +40,7 @@ public class StepServerLauncher {
                 }
             }
 
-            // Link JSword data before server starts
-            // Then re-link after a delay (JSword may delete symlinks during init)
             linkJswordData(home);
-            final String homeFinal = home;
-            new Thread(() -> {
-                try { Thread.sleep(5000); } catch (Exception e) {}
-                linkJswordData(homeFinal);
-            }).start();
 
             Method start = STEPTomcatServer.class.getDeclaredMethod("start");
             start.setAccessible(true);
@@ -63,7 +59,7 @@ public class StepServerLauncher {
                 startTomcatDirectly();
             }
 
-            Thread.sleep(Long.MAX_VALUE);
+            new java.util.concurrent.CountDownLatch(1).await();
 
         } catch (Exception e) {
             try {
@@ -147,7 +143,11 @@ public class StepServerLauncher {
         }
     }
 
-    private static void deleteRecursive(File f) {
+    private static void deleteRecursive(File f) throws Exception {
+        if (Files.isSymbolicLink(f.toPath())) {
+            Files.delete(f.toPath());
+            return;
+        }
         if (f.isDirectory()) {
             File[] children = f.listFiles();
             if (children != null) {
@@ -158,8 +158,8 @@ public class StepServerLauncher {
     }
 
     private static void startTomcatDirectly() throws Exception {
-        String warPath = System.getProperty("step.war.path", "step-web");
-        int port = Integer.parseInt(System.getProperty("step.war.port", "8989"));
+        String warPath = System.getProperty("step.war.path", DEFAULT_WAR_PATH);
+        int port = Integer.parseInt(System.getProperty("step.war.port", DEFAULT_PORT));
         String contextPath = System.getProperty("step.war.context", "");
 
         org.apache.catalina.startup.Tomcat tomcat = new org.apache.catalina.startup.Tomcat();

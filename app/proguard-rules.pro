@@ -1,3 +1,2 @@
--keepclassmembers class * {
-    @android.webkit.JavascriptInterface <methods>;
-}
+-keep class com.eratverbum.stepbible.JVMStub { *; }
+-keep class com.eratverbum.stepbible.ServerState { *; }

@@ -57,6 +57,7 @@ detect_step_version() {
     local latest
     latest=$(echo "$page" | grep -oP 'stepbible_\d+_\d+_\d+\.deb' | sort -t_ -k2 -V | tail -1)
     [[ -z "$latest" ]] && die "Could not detect STEP version"
+    [[ ! "$latest" =~ ^stepbible_[0-9]+_[0-9]+_[0-9]+\.deb$ ]] && die "Invalid STEP version format: $latest"
     STEP_DEB_URL="https://dev.stepbible.org/downloads/$latest"
     STEP_DEB="$DOWNLOADS_DIR/$latest"
     info "Latest STEP: $latest"
@@ -70,7 +71,7 @@ download() {
     fi
     mkdir -p "$(dirname "$dest")"
     info "Downloading $(basename "$dest")..."
-    curl -fSL "$url" -o "$dest.partial" || die "Download failed: $url"
+    curl -fSL --proto =https --tlsv1.2 "$url" -o "$dest.partial" || die "Download failed: $url"
     mv "$dest.partial" "$dest"
 }
 
@@ -95,7 +96,7 @@ extract_deb() {
             ls -la "$tmpDir"
             die "Unknown data archive format in $deb"
         fi
-        cp -a ./* "$target/" 2>/dev/null || true
+        cp -a ./* "$target/"
     )
     rm -rf "$tmpDir"
 }
@@ -151,7 +152,9 @@ setup_android_sdk() {
     chmod +x "$sdkmanager"
     yes | "$sdkmanager" --sdk_root="$sdk_dir" \
         "platforms;android-34" "build-tools;34.0.0" "platform-tools" \
-        "ndk;27.0.12077973" | grep -v "^\[=" || true
+        "ndk;27.0.12077973" | grep -v "^\[="
+    local _sdk_exit=${PIPESTATUS[0]}
+    [[ $_sdk_exit -ne 0 ]] && die "sdkmanager installation failed (exit $_sdk_exit)"
 
     echo "sdk.dir=$sdk_dir" > "$SCRIPT_DIR/local.properties"
     info "Android SDK ready at $sdk_dir"
@@ -186,8 +189,8 @@ phase_download() {
         download "${JRE_URLS[$arch]}" "$DOWNLOADS_DIR/jre17-${arch}.tar.xz"
     done
 
-    echo "STEP_DEB=$STEP_DEB" > "$SCRIPT_DIR/.build-vars"
-    echo "STEP_VERSION=$(echo "$STEP_DEB" | grep -oP '\d+_\d+_\d+' | head -1)" >> "$SCRIPT_DIR/.build-vars"
+    printf 'STEP_DEB=%q\n' "$STEP_DEB" > "$SCRIPT_DIR/.build-vars"
+    printf 'STEP_VERSION=%q\n' "$(echo "$STEP_DEB" | grep -oP '\d+_\d+_\d+' | head -1)" >> "$SCRIPT_DIR/.build-vars"
     info "Download complete"
 }
 
@@ -232,7 +235,7 @@ phase_extract() {
             "$SCRIPT_DIR/step-bootstrap/src/com/eratverbum/stepbible/bootstrap/StepServerLauncher.java" \
             "$SCRIPT_DIR/step-bootstrap/src/com/tyndalehouse/step/models/timeline/simile/SimileTimelineTranslatorImpl.java" \
             "$SCRIPT_DIR/step-bootstrap/src/com/tyndalehouse/step/rest/controllers/InternationalJsonController.java" && \
-        "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . 2>/dev/null && \
+        "$jdk_home/bin/jar" cf "$ASSETS_DIR/step/step_bootstrap.jar" -C "$boot_dir" . && \
         info "StepServerLauncher compiled" || \
         die "Failed to compile StepServerLauncher (STEP server cannot start)"
         rm -rf "$boot_dir"
@@ -267,13 +270,15 @@ phase_extract() {
         find "$ASSETS_DIR/jre/$abi/bin" -type f ! -name "java" -exec rm -f {} + 2>/dev/null || true
     done
 
-    # --- Archive STEP data into single tar.gz for fast first-launch extraction ---
-    info "Archiving STEP data into step.tar.gz..."
+    # --- Archive STEP data into single tar for fast first-launch extraction ---
+    info "Archiving STEP data into step.tar..."
     cd "$ASSETS_DIR"
-    tar --format=gnu -czf "step.tar.gz" step/ 2>/dev/null && \
-        rm -rf step/ && \
-        info "step.tar.gz: $(du -h step.tar.gz | cut -f1)" || \
-        info "Warning: failed to create tar.gz, keeping individual files"
+    if tar --format=gnu -cf "step.tar" step/ 2>/dev/null; then
+        rm -rf step/
+        info "step.tar: $(du -h step.tar | cut -f1)"
+    else
+        info "Warning: failed to create tar, keeping individual files"
+    fi
     cd "$SCRIPT_DIR"
 
     info "STEP size: $(du -sh "$ASSETS_DIR/step" 2>/dev/null || echo "archived")"
@@ -306,7 +311,7 @@ phase_build() {
     info "Building APK..."
     cd "$SCRIPT_DIR"
     if [[ -x "./gradlew" ]]; then
-        JAVA_HOME="${JAVA_HOME:-}" ./gradlew $gradle_props assembleDebug
+        JAVA_HOME="${JAVA_HOME:-}" ./gradlew "$gradle_props" assembleDebug
     else
         gradle $gradle_props assembleDebug
     fi

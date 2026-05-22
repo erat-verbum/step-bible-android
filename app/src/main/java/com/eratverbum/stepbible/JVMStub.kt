@@ -3,6 +3,7 @@ package com.eratverbum.stepbible
 object JVMStub {
     @Volatile private var loaded = false
 
+    @Synchronized
     fun ensureLoaded(): Boolean {
         if (loaded) return true
         return try {

@@ -7,7 +7,6 @@ android {
     namespace = "com.eratverbum.stepbible"
     compileSdk = 34
     ndkVersion = "27.0.12077973"
-
     defaultConfig {
         applicationId = "com.eratverbum.stepbible"
         minSdk = 26
@@ -20,7 +19,6 @@ android {
             }
         }
     }
-
     splits {
         abi {
             isEnable = true
@@ -29,11 +27,9 @@ android {
         }
     }
 
-
-
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -42,15 +38,20 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    aaptOptions {
-        ignoreAssetsPattern = "!.deb:!tmp:!lost+found"
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
-
+    lint {
+        checkReleaseBuilds = false
+    }
+    aaptOptions {
+        ignoreAssetsPattern = ".deb:tmp:lost+found"
+    }
     externalNativeBuild {
         cmake {
             path = file("src/main/jni/CMakeLists.txt")

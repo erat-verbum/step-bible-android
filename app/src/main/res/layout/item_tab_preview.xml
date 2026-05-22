@@ -11,14 +11,15 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:scaleType="fitCenter"
-        android:padding="2dp" />
+        android:padding="2dp"
+        android:importantForAccessibility="no" />
 
     <ImageButton
         android:id="@+id/tab_preview_close"
         android:layout_width="28dp"
         android:layout_height="28dp"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:background="#66000000"
+        android:src="@drawable/ic_close"
+        android:background="@color/tab_close_overlay"
         android:contentDescription="@string/tab_close"
         android:scaleType="center"
         android:padding="4dp"

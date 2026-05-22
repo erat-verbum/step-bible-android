@@ -5,4 +5,10 @@
     <color name="tab_preview_stroke">#555555</color>
     <color name="tab_preview_overlay">#CC121212</color>
     <color name="dialog_bg">#1E1E1E</color>
+    <color name="teal_primary">#FF1F768F</color>
+    <color name="teal_primary_variant">#FF0E4050</color>
+    <color name="teal_secondary">#FF02BFA8</color>
+    <color name="teal_secondary_variant">#FF016A63</color>
+    <color name="tab_close_overlay">#66FFFFFF</color>
+    <color name="tab_title_inactive">#B3FFFFFF</color>
 </resources>
