@@ -37,11 +37,17 @@ android {
                 keyPassword = System.getenv("KEY_PASSWORD")
             }
         }
+        create("debugRelease") {
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs["release"]
+            signingConfig = if (System.getenv("KEYSTORE_PATH") != null) signingConfigs["release"] else signingConfigs["debugRelease"]
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

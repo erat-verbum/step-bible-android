@@ -15,6 +15,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 : "${STEP_DEB_URL:=""}"
+: "${BUILD_TYPE:="Debug"}"
 : "${JRE_VERSION:="17.0.19"}"
 : "${GRADLE_VERSION:="9.5.1"}"
 : "${POJAV_JRE_RELEASE:="jre17-ec28559"}"
@@ -102,6 +103,12 @@ extract_deb() {
 }
 
 setup_jdk() {
+    if [[ -n "${JAVA_HOME:-}" ]] && [[ -x "$JAVA_HOME/bin/javac" ]]; then
+        if "$JAVA_HOME/bin/javac" --version 2>&1 | grep -q "^javac 21"; then
+            info "Using JDK 21 from JAVA_HOME: $JAVA_HOME"
+            return
+        fi
+    fi
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
     if [[ -n "$jdk_home" ]] && [[ -x "$jdk_home/bin/java" ]]; then
@@ -222,6 +229,11 @@ phase_extract() {
     # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
+    if [[ -z "$jdk_home" ]] && [[ -n "${JAVA_HOME:-}" ]] && [[ -x "$JAVA_HOME/bin/javac" ]]; then
+        if "$JAVA_HOME/bin/javac" --version 2>&1 | grep -q "^javac 21"; then
+            jdk_home="$JAVA_HOME"
+        fi
+    fi
     if [[ -z "$jdk_home" ]]; then
         info "JDK 21 not found, skipping bootstrap compilation"
         info "Run './build.sh setup' first or use './build.sh build'"
@@ -292,16 +304,14 @@ phase_extract() {
 
 phase_build() {
     info "=== Phase: Build APK ==="
-    [[ ! -f "$SCRIPT_DIR/.extracted" ]] && phase_extract
 
     setup_jdk
     setup_android_sdk
     setup_gradle
+    [[ ! -f "$SCRIPT_DIR/.extracted" ]] && phase_extract
 
     export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
-    if [[ ! -f "$SCRIPT_DIR/local.properties" ]]; then
-        echo "sdk.dir=$ANDROID_HOME" > "$SCRIPT_DIR/local.properties"
-    fi
+    echo "sdk.dir=$ANDROID_HOME" > "$SCRIPT_DIR/local.properties"
 
     local gradle_props=""
     if [[ -n "${JAVA_HOME:-}" ]]; then
@@ -309,14 +319,16 @@ phase_build() {
     fi
 
     info "Building APK..."
+    local gradle_task="assemble${BUILD_TYPE}"
     cd "$SCRIPT_DIR"
     if [[ -x "./gradlew" ]]; then
-        JAVA_HOME="${JAVA_HOME:-}" ./gradlew "$gradle_props" assembleDebug
+        JAVA_HOME="${JAVA_HOME:-}" ./gradlew "$gradle_props" "$gradle_task"
     else
-        gradle $gradle_props assembleDebug
+        gradle $gradle_props "$gradle_task"
     fi
 
-    for apk in "$SCRIPT_DIR/app/build/outputs/apk/debug/"*.apk; do
+    local apk_dir="$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
+    for apk in "$SCRIPT_DIR/app/build/outputs/apk/$apk_dir/"*.apk; do
         info "APK generated: $(basename "$apk") (size: $(du -h "$apk" | cut -f1))"
     done
 }
@@ -343,8 +355,9 @@ phase_system_image() {
 
 phase_run() {
     info "=== Phase: Run ==="
+    local apk_dir="$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')"
     local apk
-    apk=$(find "$SCRIPT_DIR/app/build/outputs/apk/debug" -name '*.apk' | head -1)
+    apk=$(find "$SCRIPT_DIR/app/build/outputs/apk/$apk_dir" -name '*.apk' | head -1)
     [[ -f "$apk" ]] || die "No APK found. Run './build.sh build' first."
 
     export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
@@ -460,7 +473,8 @@ usage() {
     echo "Commands:"
     echo "  download    Download STEP .deb and JRE .debs (all 4 archs)"
     echo "  extract     Extract debs and prepare assets"
-    echo "  build       Build APK (runs extract first if needed)"
+    echo "  build       Build debug APK (default)"
+    echo "  build release Build release APK (signed)"
     echo "  setup       Install JDK 21, Android SDK, Gradle"
     echo "  system-image Download Android 34 x86_64 system image for emulator"
     echo "  clean       Remove all downloaded and extracted files"
@@ -471,7 +485,7 @@ usage() {
 case "${1:-all}" in
     download)  phase_download ;;
     extract)   phase_extract ;;
-    build)     phase_build ;;
+    build)     [[ "${2:-}" == "release" ]] && BUILD_TYPE="Release"; phase_build ;;
     run)       phase_run ;;
     stop)      phase_stop ;;
     log)       phase_log ;;

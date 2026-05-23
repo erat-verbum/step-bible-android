@@ -8,8 +8,14 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
 
       - name: Parse release tag
         id: tag
@@ -18,13 +24,18 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           DEB=$(echo "$TAG" | grep -oP '^\d+\.\d+\.\d+')
           echo "deb_version=$DEB" >> $GITHUB_OUTPUT
-          echo "deb_underscore=$(echo "$DEB" | tr '.' '_')" >> $GITHUB_OUTPUT
+          DEB_US=$(echo "$DEB" | tr '.' '_')
+          echo "deb_underscore=$DEB_US" >> $GITHUB_OUTPUT
           echo "android_patch=${TAG##*.}" >> $GITHUB_OUTPUT
+          echo "STEP_DEB_URL=https://dev.stepbible.org/downloads/stepbible_${DEB_US}.deb" >> $GITHUB_ENV
 
       - name: Cache build assets
         uses: actions/cache@v4
         with:
-          path: build-cache
+          path: |
+            build-cache
+            .build-vars
+            .extracted
           key: build-cache-${{ hashFiles('build.sh') }}
 
       - name: Decode keystore
@@ -35,42 +46,14 @@ jobs:
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
 
-      - name: Setup assets
-        env:
-          STEP_DEB_URL: "https://dev.stepbible.org/downloads/stepbible_26_5_2.deb"
-          JAVA_HOME: /opt/hostedtoolcache/JavaTemurin-21.0.11/x64
-        run: |
-          echo "Starting setup phase..."
-          echo "JAVA_HOME: $JAVA_HOME"
-          echo "STEP_DEB_URL: $STEP_DEB_URL"
-          
-          # Create necessary directories
-          mkdir -p build-cache/downloads build-cache/step-extracted app/src/main/assets
-          
-          # Download STEP package
-          echo "Downloading STEP package..."
-          curl -fSL "$STEP_DEB_URL" -o build-cache/downloads/stepbible_26_5_2.deb
-          
-          # Extract STEP package
-          echo "Extracting STEP package..."
-          cd build-cache/step-extracted
-          ar x ../downloads/stepbible_26_5_2.deb
-          tar xf data.tar.bz2
-          cd /home/runner/work/step-bible-android/step-bible-android
-          
-          # Copy STEP files to assets
-          echo "Copying STEP files..."
-          cp -a build-cache/step-extracted/opt/step app/src/main/assets/step
-          
-          # Clean up STEP assets
-          rm -rf app/src/main/assets/step/jre app/src/main/assets/step/.install4j \
-                 app/src/main/assets/step/logs app/src/main/assets/step/runStep.sh \
-                 app/src/main/assets/step/post-install.sh 2>/dev/null || true
-          
-          echo "Setup complete"
+      - name: Download assets
+        run: bash build.sh download
+
+      - name: Extract assets
+        run: bash build.sh extract
 
       - name: Build release APK
-        run: ./gradlew assembleRelease
+        run: bash build.sh build release
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
