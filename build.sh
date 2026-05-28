@@ -110,7 +110,7 @@ setup_jdk() {
         fi
     fi
     local jdk_home
-    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
+    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1 || true)
     if [[ -n "$jdk_home" ]] && [[ -x "$jdk_home/bin/java" ]]; then
         export JAVA_HOME="$jdk_home"
         info "JDK 21 already at $jdk_home"
@@ -121,7 +121,7 @@ setup_jdk() {
     curl -SL "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.11%2B10/OpenJDK21U-jdk_x64_linux_hotspot_21.0.11_10.tar.gz" \
       -o "$JDK_DIR/jdk21.tar.gz" || die "Failed to download JDK 21"
     tar -xzf "$JDK_DIR/jdk21.tar.gz" -C "$JDK_DIR/"
-    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
+    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1 || true)
     [[ -z "$jdk_home" ]] && die "JDK 21 extraction failed"
     export JAVA_HOME="$jdk_home"
     info "JDK 21 ready at $jdk_home"
@@ -153,7 +153,7 @@ setup_android_sdk() {
     fi
 
     local sdkmanager
-    sdkmanager=$(find "$sdk_dir/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    sdkmanager=$(find "$sdk_dir/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1 || true)
     [[ -z "$sdkmanager" ]] && die "sdkmanager not found after extraction"
 
     chmod +x "$sdkmanager"
@@ -216,7 +216,7 @@ phase_extract() {
     info "Copying STEP files..."
     mkdir -p "$ASSETS_DIR/step"
     local step_root
-    step_root=$(find "$STEP_EXTRACT_DIR" -maxdepth 5 -name "step-server-*.jar" -type f 2>/dev/null | head -1)
+    step_root=$(find "$STEP_EXTRACT_DIR" -maxdepth 5 -name "step-server-*.jar" -type f 2>/dev/null | head -1 || true)
     [[ -z "$step_root" ]] && die "Could not find STEP server JAR in extracted package"
     step_root="$(dirname "$step_root")"
     info "STEP root: $step_root"
@@ -241,7 +241,7 @@ phase_extract() {
 
     # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---
     local jdk_home
-    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)
+    jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1 || true)
     if [[ -z "$jdk_home" ]] && [[ -n "${JAVA_HOME:-}" ]] && [[ -x "$JAVA_HOME/bin/javac" ]]; then
         if "$JAVA_HOME/bin/javac" --version 2>&1 | grep -q "^javac 21"; then
             jdk_home="$JAVA_HOME"
@@ -281,7 +281,7 @@ phase_extract() {
         fi
 
         local jre_source
-        jre_source=$(find "$extract_dir" -name "java" -type f 2>/dev/null | head -1)
+        jre_source=$(find "$extract_dir" -name "java" -type f 2>/dev/null | head -1 || true)
         [[ -z "$jre_source" ]] && die "Could not find java binary for $arch"
         jre_source="$(dirname "$(dirname "$jre_source")")"
         info "JRE $arch → $abi: $(du -sh "$jre_source" | cut -f1)"
@@ -358,7 +358,7 @@ phase_system_image() {
     setup_android_sdk
     export ANDROID_HOME="${ANDROID_HOME:-$SDK_DIR}"
     local sdkmanager
-    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1 || true)
     [[ -z "$sdkmanager" ]] && die "sdkmanager not found"
     local system_image="system-images;android-34;google_apis;x86_64"
     info "Downloading system image (1.2GB)..."
@@ -381,9 +381,9 @@ phase_run() {
     local emulator="$ANDROID_HOME/emulator/emulator"
     local adb="$ANDROID_HOME/platform-tools/adb"
     local avdmanager
-    avdmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "avdmanager" -type f 2>/dev/null | head -1)
+    avdmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "avdmanager" -type f 2>/dev/null | head -1 || true)
     local sdkmanager
-    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1)
+    sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1 || true)
     local avd_name="step_test"
     local system_image="system-images;android-34;google_apis;x86_64"
 
