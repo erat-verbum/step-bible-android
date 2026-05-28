@@ -23,7 +23,9 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
+import android.webkit.ConsoleMessage
 import android.webkit.WebView
+import android.webkit.WebResourceResponse
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
 import android.widget.Button
@@ -385,6 +387,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val chromeClient = object : WebChromeClient() {
+        override fun onConsoleMessage(msg: ConsoleMessage?): Boolean {
+            Log.d(TAG, "JS [${msg?.sourceId()}:${msg?.lineNumber()}] ${msg?.message()}")
+            return super.onConsoleMessage(msg)
+        }
+
         override fun onCreateWindow(
             view: WebView?,
             isDialog: Boolean,
@@ -455,6 +462,9 @@ class MainActivity : AppCompatActivity() {
             domStorageEnabled = true
             builtInZoomControls = true
             displayZoomControls = false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                WebView.setWebContentsDebuggingEnabled(true)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 try {
                     wv.javaClass.getMethod("setAlgorithmicDarkeningAllowed", Boolean::class.javaPrimitiveType).invoke(wv, true)
@@ -465,6 +475,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
         wv.webViewClient = object : WebViewClient() {
+            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
+                return null
+            }
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 if (request?.isForMainFrame != true) return false
                 val uri = request?.url ?: return false

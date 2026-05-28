@@ -102,8 +102,8 @@ public class StepServerLauncher {
             // lucene/Sword/ -> step/homes/jsword/lucene/Sword/
             linkDir(new File(jswordHome, "lucene/Sword"), new File(jswordSource, "lucene/Sword"));
 
-            // step/entities/ -> step/homes/jsword/step/entities/
-            linkDir(new File(jswordHome, "step/entities"), new File(jswordSource, "step/entities"));
+            // step/ -> step/homes/jsword/step/ (includes entities, ordinal_strongs.dat, etc.)
+            linkDir(new File(jswordHome, "step"), new File(jswordSource, "step"));
 
         } catch (Exception e) {
             System.err.println("Failed to link jsword data: " + e.getMessage());
