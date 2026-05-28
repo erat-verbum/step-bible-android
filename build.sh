@@ -52,9 +52,16 @@ detect_step_version() {
         STEP_DEB="$DOWNLOADS_DIR/$(basename "$STEP_DEB_URL")"
         return
     fi
-    info "Using STEP 26.1.2 (matches working Docker deployment)..."
-    STEP_DEB_URL="https://downloads.stepbible.com/file/Stepbible/stepbible_26_1_2.deb"
-    STEP_DEB="$DOWNLOADS_DIR/stepbible_26_1_2.deb"
+    info "Detecting latest STEP version from dev.stepbible.org..."
+    local page
+    page=$(curl -sL "https://dev.stepbible.org/downloads/")
+    local latest
+    latest=$(echo "$page" | grep -oP 'stepbible_\d+_\d+_\d+\.deb' | sort -t_ -k2 -V | tail -1)
+    [[ -z "$latest" ]] && die "Could not detect STEP version"
+    [[ ! "$latest" =~ ^stepbible_[0-9]+_[0-9]+_[0-9]+\.deb$ ]] && die "Invalid STEP version format: $latest"
+    STEP_DEB_URL="https://dev.stepbible.org/downloads/$latest"
+    STEP_DEB="$DOWNLOADS_DIR/$latest"
+    info "Latest STEP: $latest"
 }
 
 download() {
