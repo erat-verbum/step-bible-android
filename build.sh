@@ -226,6 +226,19 @@ phase_extract() {
            "$ASSETS_DIR/step/logs" "$ASSETS_DIR/step/runStep.sh" \
            "$ASSETS_DIR/step/post-install.sh" 2>/dev/null || true
 
+    # --- Apply STEP config patches (matches Docker deployment) ---
+    local web_props="$ASSETS_DIR/step/step-web/WEB-INF/classes/step.web.properties"
+    if [[ -f "$web_props" ]]; then
+        sed -i 's/^app\.desktop=false$/app.desktop=true/' "$web_props"
+        info "Patched app.desktop=true"
+    fi
+    local web_xml="$ASSETS_DIR/step/step-web/WEB-INF/web.xml"
+    if [[ -f "$web_xml" ]]; then
+        sed -i '/<filter-name>Remote Address Filter<\/filter-name>/,/<\/filter-mapping>/d' "$web_xml"
+        sed -i '/<!-- The following are used for the stand-alone version/,/the "-Pstandalone-install"/d' "$web_xml"
+        info "Removed Remote Address Filter from web.xml"
+    fi
+
     # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---
     local jdk_home
     jdk_home=$(find "$JDK_DIR" -maxdepth 1 -type d -name "jdk-21*" 2>/dev/null | head -1)

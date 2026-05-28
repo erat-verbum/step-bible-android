@@ -168,3 +168,55 @@ adb shell am force-stop com.eratverbum.stepbible
 | Extraction skipped on rebuild | Old marker file persists | Delete `.extraction-complete` and `.app-version` |
 | No emulator window | Started with `-no-window` | Restart without that flag (use `-gpu swiftshader_indirect`) |
 | STEP server won't start | Missing STEP data in assets | Run `./build.sh extract` then rebuild |
+
+## Releasing
+
+Releases are automated via GitHub Actions. Pushing a tag matching `[0-9]+.[0-9]+.[0-9]+.[0-9]+` triggers the workflow in `.github/workflows/build-release.yml`.
+
+### Tag format
+
+```
+STEP_MAJOR.STEP_MINOR.STEP_PATCH.ANDROID_PATCH
+```
+
+Example: `26.5.2.1` means STEP version 26.5.2, Android release 1.
+
+The first three numbers determine which STEP `.deb` is downloaded from `dev.stepbible.org`. The fourth number is the Android app release iteration.
+
+### How to release
+
+```bash
+# 1. Ensure all changes are committed
+git status  # should be clean
+
+# 2. Push commits to main
+git push origin main
+
+# 3. Tag the release (using the current STEP version)
+git tag 26.5.2.1
+git push origin 26.5.2.1
+```
+
+The CI workflow will:
+1. Download the specified STEP `.deb` version
+2. Extract STEP server + JREs into APK assets
+3. Build signed release APKs (arm64-v8a + x86_64)
+4. Create a GitHub Release with the APKs attached
+
+### What the workflow does NOT do
+
+- It does **not** run `clean` — it uses a build cache
+
+### Local release builds
+
+To build a signed release APK locally:
+
+```bash
+export KEYSTORE_PATH=/path/to/release.keystore
+export KEYSTORE_PASSWORD=...
+export KEY_ALIAS=...
+export KEY_PASSWORD=...
+./build.sh build release
+```
+
+Produces per-architecture APKs in `app/build/outputs/apk/release/`. Without signing env vars, it falls back to the debug keystore.
