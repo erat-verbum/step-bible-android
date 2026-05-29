@@ -14,4 +14,7 @@
     <string name="tab_overview">Tab overview</string>
     <string name="close">Close</string>
     <string name="tabs_format">Tabs (%d)</string>
+    <string name="server_unresponsive">The STEP server is not responding. The app needs to restart.</string>
+    <string name="server_restarting">Restarting server\u2026</string>
+    <string name="restart_app">Restart app</string>
 </resources>

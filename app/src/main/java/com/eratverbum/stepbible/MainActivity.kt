@@ -25,6 +25,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.ConsoleMessage
 import android.webkit.WebView
+import android.webkit.WebResourceError
 import android.webkit.WebResourceResponse
 import android.webkit.WebViewClient
 import android.widget.BaseAdapter
@@ -38,6 +39,7 @@ import android.widget.PopupMenu
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -71,6 +73,10 @@ class MainActivity : AppCompatActivity() {
     private var pendingRestoreIndex = 0
     private var serverThread: Thread? = null
     private var serverPollThread: Thread? = null
+    private var healthCheckThread: Thread? = null
+    @Volatile private var healthCheckRunning = false
+    @Volatile private var consecutiveFailures = 0
+    private var isRestarting = false
 
     private data class TabInfo(
         val webView: WebView,
@@ -187,6 +193,68 @@ class MainActivity : AppCompatActivity() {
         serverPollThread?.start()
     }
 
+    private fun startHealthCheck() {
+        stopHealthCheck()
+        consecutiveFailures = 0
+        healthCheckRunning = true
+        healthCheckThread = Thread {
+            while (healthCheckRunning && !Thread.currentThread().isInterrupted) {
+                try { Thread.sleep(10_000) } catch (_: InterruptedException) { break }
+                var conn: HttpURLConnection? = null
+                try {
+                    val url = URL("http://127.0.0.1:${ServerState.port}/")
+                    conn = url.openConnection() as HttpURLConnection
+                    conn.connectTimeout = 2000
+                    conn.readTimeout = 2000
+                    conn.connect()
+                    if (conn.responseCode == 200) {
+                        consecutiveFailures = 0
+                        continue
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    conn?.disconnect()
+                }
+                consecutiveFailures++
+                if (consecutiveFailures >= 3) {
+                    healthCheckRunning = false
+                    runOnUiThread { onServerUnresponsive() }
+                    break
+                }
+            }
+        }.apply { isDaemon = true; start() }
+    }
+
+    private fun stopHealthCheck() {
+        healthCheckRunning = false
+        healthCheckThread?.interrupt()
+        healthCheckThread = null
+    }
+
+    private fun onServerUnresponsive() {
+        stopHealthCheck()
+        if (isFinishing || isDestroyed) return
+        if (serverThread?.isAlive == false) {
+            isRestarting = true
+            toolbar.visibility = View.GONE
+            tabBar.visibility = View.GONE
+            loadingSpinner.visibility = View.VISIBLE
+            loadingText.text = getString(R.string.server_restarting)
+            loadingText.visibility = View.VISIBLE
+            startServer()
+        } else {
+            AlertDialog.Builder(this)
+                .setMessage(R.string.server_unresponsive)
+                .setCancelable(false)
+                .setPositiveButton(R.string.restart_app) { _, _ ->
+                    val intent = packageManager.getLaunchIntentForPackage(packageName)
+                    finish()
+                    startActivity(intent)
+                }
+                .show()
+        }
+    }
+
     private fun onServerReady() {
         if (isFinishing || isDestroyed) return
         loadingSpinner.visibility = View.GONE
@@ -204,11 +272,21 @@ class MainActivity : AppCompatActivity() {
                 restoreSavedTabs(pendingRestoreData!!, pendingRestoreIndex)
                 pendingRestoreData = null
             }
+            isRestarting -> {
+                isRestarting = false
+                if (tabs.isNotEmpty()) {
+                    tabs[currentIndex].webView.reload()
+                } else {
+                    createTab("http://127.0.0.1:${ServerState.port}/")
+                }
+            }
             else -> createTab("http://127.0.0.1:${ServerState.port}/")
         }
+        startHealthCheck()
     }
 
     private fun onServerFailed() {
+        stopHealthCheck()
         serverFailed = true
         loadingSpinner.visibility = View.GONE
         loadingText.text = getString(R.string.server_failed)
@@ -499,8 +577,16 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, "Page started: $url")
                 }
             }
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                if (request?.isForMainFrame == true) {
+                    val msg = error?.description?.toString() ?: "Page load error"
+                    Log.e(TAG, "Page error ${error?.errorCode}: $msg")
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                }
+            }
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
+                view?.evaluateJavascript(FETCH_TIMEOUT_JS, null)
             }
         }
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
@@ -819,6 +905,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        stopHealthCheck()
         serverThread?.interrupt()
         serverThread = null
         serverPollThread?.interrupt()
@@ -928,6 +1015,15 @@ class MainActivity : AppCompatActivity() {
         private const val FILE_CHOOSER_REQUEST_CODE = 1001
         private const val MAX_RETRIES = 2
         private const val serverPort = 8989
+        private const val FETCH_TIMEOUT_JS = """(function(){
+  var o=window.fetch;
+  window.fetch=function(u,i){
+    i=i||{};if(i.signal)return o.call(this,u,i);
+    var c=new AbortController();i.signal=c.signal;
+    var t=setTimeout(function(){c.abort()},5000);
+    return o.call(this,u,i).finally(function(){clearTimeout(t)});
+  };
+})();"""
     }
 }
 

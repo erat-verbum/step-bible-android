@@ -29,6 +29,7 @@ The project uses `build.sh` with sequential phases. Each phase depends on the pr
 | `download` | Downloads STEP `.deb` from dev.stepbible.org and JRE 17 tarballs from PojavLauncher GitHub |
 | `extract` | Extracts STEP server JARs, compiles bootstrap launcher, extracts JREs for all architectures (aarch64, x86_64) into `app/src/main/assets/jre/$abi/` |
 | `build` | Runs `./gradlew assembleDebug` |
+| `setup` | Installs JDK 21, Android SDK, emulator, system image, AVD, and Gradle (first time only) |
 
 ### After `clean`, always re-run `download` + `extract` before `build`
 
@@ -53,25 +54,7 @@ Produces per-architecture APKs in `app/build/outputs/apk/debug/`:
 
 ## Emulator Setup
 
-### Install required SDK components
-
-```bash
-SDK="build-cache/android-sdk"
-
-# cmdline-tools (already included via build.sh)
-# emulator
-yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "emulator"
-
-# system images (must match AVD)
-yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --install \
-  "system-images;android-34;google_apis;x86_64"
-
-# Create AVD
-echo "no" | "$SDK/cmdline-tools/latest/bin/avdmanager" create avd \
-  -n step_test -k "system-images;android-34;google_apis;x86_64" -d "pixel"
-```
-
-### Start emulator with GUI (not headless)
+`./build.sh setup` installs the emulator, system image, and creates the AVD automatically. To start the emulator after setup:
 
 ```bash
 SDK="build-cache/android-sdk"

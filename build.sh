@@ -346,10 +346,45 @@ phase_build() {
     done
 }
 
+setup_emulator() {
+    local sdk_dir="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$SDK_DIR}}"
+    local sdkmanager
+    sdkmanager=$(find "$sdk_dir/cmdline-tools" -name "sdkmanager" -type f 2>/dev/null | head -1 || true)
+    [[ -z "$sdkmanager" ]] && return
+
+    # Install emulator binary if missing
+    if [[ ! -f "$sdk_dir/emulator/emulator" ]]; then
+        info "Installing Android emulator..."
+        echo "y" | "$sdkmanager" --sdk_root="$sdk_dir" "emulator" 2>&1 | grep -v "^\[=\|Warning:" || true
+    fi
+
+    # Install system image if missing
+    local sysimg="system-images;android-34;google_apis;x86_64"
+    if ! "$sdkmanager" --sdk_root="$sdk_dir" --list_installed 2>/dev/null | grep -q "$sysimg"; then
+        info "Downloading system image (~1.2GB, this may take a while)..."
+        echo "y" | "$sdkmanager" --sdk_root="$sdk_dir" "$sysimg" 2>&1 | grep -v "^\[=\|Warning:" || true
+    fi
+
+    # Create AVD if missing
+    local avdmanager
+    avdmanager=$(find "$sdk_dir/cmdline-tools" -name "avdmanager" -type f 2>/dev/null | head -1 || true)
+    if [[ -n "$avdmanager" ]]; then
+        local existing
+        existing=$("$avdmanager" list avd 2>/dev/null | grep -oP "Name: \Kstep_test" | head -1)
+        if [[ -z "$existing" ]]; then
+            info "Creating AVD 'step_test'..."
+            echo "no" | "$avdmanager" create avd -n step_test -k "$sysimg" -d "pixel" 2>&1 | grep -v "^\[=\|Warning:" || true
+        fi
+    fi
+
+    info "Emulator ready"
+}
+
 phase_setup() {
     info "=== Phase: Setup ==="
     setup_jdk
     setup_android_sdk
+    setup_emulator
     setup_gradle
     info "Setup complete"
 }
