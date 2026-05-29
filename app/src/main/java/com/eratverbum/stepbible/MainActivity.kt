@@ -23,7 +23,6 @@ import android.view.ViewGroup
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
-import android.webkit.WebSettings
 import android.webkit.ConsoleMessage
 import android.webkit.WebView
 import android.webkit.WebResourceError
