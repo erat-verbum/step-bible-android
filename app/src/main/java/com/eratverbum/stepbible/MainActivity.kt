@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnBack: ImageButton
     private lateinit var btnForward: ImageButton
     private lateinit var btnReload: ImageButton
+    private lateinit var btnHome: ImageButton
     private lateinit var btnNewTab: ImageButton
     private lateinit var btnTabOverview: ImageButton
     private lateinit var loadingSpinner: ProgressBar
@@ -97,6 +98,7 @@ class MainActivity : AppCompatActivity() {
         btnBack = findViewById(R.id.btn_back)
         btnForward = findViewById(R.id.btn_forward)
         btnReload = findViewById(R.id.btn_reload)
+        btnHome = findViewById(R.id.btn_home)
         btnNewTab = findViewById(R.id.btn_new_tab)
         btnTabOverview = findViewById(R.id.btn_tab_overview)
         loadingSpinner = findViewById(R.id.loading_spinner)
@@ -108,6 +110,11 @@ class MainActivity : AppCompatActivity() {
         btnBack.setOnLongClickListener { showHistory(true); true }
         btnForward.setOnLongClickListener { showHistory(false); true }
         btnReload.setOnClickListener { reloadCurrent() }
+        btnHome.setOnClickListener {
+            if (currentIndex in tabs.indices) {
+                tabs[currentIndex].webView.loadUrl("http://127.0.0.1:${ServerState.port}/")
+            }
+        }
         btnNewTab.setOnClickListener {
             val url = if (currentIndex in tabs.indices) {
                 tabs[currentIndex].webView.url ?: "http://127.0.0.1:${ServerState.port}/"

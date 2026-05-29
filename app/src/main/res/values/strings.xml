@@ -11,6 +11,7 @@
     <string name="new_tab">New tab</string>
     <string name="share_lookup_esv">Look up in ESV</string>
     <string name="share_lookup_multi">Look up in ESV, SBLG, THOT</string>
+    <string name="home">Home</string>
     <string name="tab_overview">Tab overview</string>
     <string name="close">Close</string>
     <string name="tabs_format">Tabs (%d)</string>
