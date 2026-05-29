@@ -4,6 +4,7 @@ import android.app.Dialog
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
@@ -550,14 +551,6 @@ class MainActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
                 WebView.setWebContentsDebuggingEnabled(true)
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                try {
-                    wv.javaClass.getMethod("setAlgorithmicDarkeningAllowed", Boolean::class.javaPrimitiveType).invoke(wv, true)
-                } catch (_: Exception) {}
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                @Suppress("DEPRECATION")
-                forceDark = WebSettings.FORCE_DARK_AUTO
-            }
         }
         wv.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
@@ -594,6 +587,7 @@ class MainActivity : AppCompatActivity() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 updateNavButtons()
                 view?.evaluateJavascript(FETCH_TIMEOUT_JS, null)
+                view?.let { syncDarkMode(it) }
             }
         }
         wv.setDownloadListener { url, userAgent, contentDisposition, mimeType, contentLength ->
@@ -618,6 +612,50 @@ class MainActivity : AppCompatActivity() {
         // Use alpha instead of enabled=false to preserve ripple feedback
         btnBack.alpha = if (hasBack) 1.0f else 0.3f
         btnForward.alpha = if (hasForward) 1.0f else 0.3f
+    }
+
+    private fun isAndroidDarkMode(): Boolean {
+        val nightMode = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return nightMode == Configuration.UI_MODE_NIGHT_YES
+    }
+
+    private fun syncDarkMode(wv: WebView) {
+        if (currentIndex !in tabs.indices) return
+        val url = wv.url ?: return
+        val port = ServerState.port
+        if (!url.startsWith("http://127.0.0.1:$port")) return
+        val dark = isAndroidDarkMode()
+        wv.evaluateJavascript(
+            """
+            (function() {
+                if (typeof step === 'undefined' || !step.settings) return;
+                var root = document.querySelector(':root');
+                var currentBg = root ? root.style.getPropertyValue('--clrBackground') : '';
+                var wantBg = $dark ? '#202124' : '#ffffff';
+                if (currentBg === wantBg) return;
+                var colors = $dark ?
+                    {clrText:'#BCC0C3',clrStrongText:'#8ab4f8',clrBackground:'#202124',clrHighlight:'#c58af9',clrHighlightBg:'#800080',clr2ndHover:'#c5d0fb',colorScheme:'dark'} :
+                    {clrText:'#5d5d5d',clrStrongText:'#447888',clrBackground:'#ffffff',clrHighlight:'#17758F',clrHighlightBg:'#17758F',clr2ndHover:'#d3d3d3',colorScheme:'normal'};
+                root.style.setProperty('--clrText',colors.clrText);
+                step.settings.save({clrText:colors.clrText});
+                root.style.setProperty('--clrStrongText',colors.clrStrongText);
+                step.settings.save({clrStrongText:colors.clrStrongText});
+                root.style.setProperty('--clrBackground',colors.clrBackground);
+                step.settings.save({clrBackground:colors.clrBackground});
+                root.style.setProperty('--clrHighlight',colors.clrHighlight);
+                step.settings.save({clrHighlight:colors.clrHighlight});
+                root.style.setProperty('--clrHighlightBg',colors.clrHighlightBg);
+                step.settings.save({clrHighlightBg:colors.clrHighlightBg});
+                root.style.setProperty('--clr2ndHover',colors.clr2ndHover);
+                step.settings.save({clr2ndHover:colors.clr2ndHover});
+                root.style.setProperty('--clrLexiconFocusBG','#c8d8dc');
+                step.settings.save({clrLexiconFocusBG:'#c8d8dc'});
+                root.style.setProperty('--clrRelatedWordBg','#b2e5f3');
+                step.settings.save({clrRelatedWordBg:'#b2e5f3'});
+                $('body,html').css('color-scheme',colors.colorScheme);
+            })();
+            """.trimIndent(), null
+        )
     }
 
     private fun showTabOverview() {
@@ -908,6 +946,13 @@ class MainActivity : AppCompatActivity() {
         super.onRestoreInstanceState(savedInstanceState)
         if (savedInstanceState.containsKey("pending_share_url")) {
             pendingShareUrl = savedInstanceState.getString("pending_share_url")
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        for (tab in tabs) {
+            syncDarkMode(tab.webView)
         }
     }
 
