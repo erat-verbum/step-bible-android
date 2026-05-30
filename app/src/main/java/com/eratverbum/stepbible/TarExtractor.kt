@@ -1,8 +1,11 @@
 package com.eratverbum.stepbible
 
+import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
+import java.io.SequenceInputStream
+import java.util.zip.GZIPInputStream
 import java.util.zip.ZipFile
 
 object TarExtractor {
@@ -21,7 +24,19 @@ object TarExtractor {
                 ?: throw IOException("Entry not found: $entryName")
             val raw = zip.getInputStream(entry)
             try {
-                extractTar(raw, destDir)
+                val magic = ByteArray(2)
+                val n = raw.read(magic)
+                val head: InputStream = ByteArrayInputStream(magic, 0, n.coerceAtLeast(0))
+                val stream: InputStream = if (n == 2 && magic[0] == 0x1f.toByte() && magic[1] == 0x8b.toByte()) {
+                    GZIPInputStream(SequenceInputStream(head, raw))
+                } else {
+                    SequenceInputStream(head, raw)
+                }
+                try {
+                    extractTar(stream, destDir)
+                } finally {
+                    stream.close()
+                }
             } finally {
                 raw.close()
             }

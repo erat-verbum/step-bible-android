@@ -36,11 +36,11 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupMenu
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.progressindicator.CircularProgressIndicator
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnHome: ImageButton
     private lateinit var btnNewTab: ImageButton
     private lateinit var btnTabOverview: ImageButton
-    private lateinit var loadingSpinner: ProgressBar
+    private lateinit var loadingSpinner: CircularProgressIndicator
     private lateinit var loadingText: TextView
     private lateinit var retryButton: Button
     @Volatile private lateinit var appDir: File
@@ -142,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         serverFailed = false
         retryButton.visibility = View.GONE
         loadingSpinner.visibility = View.VISIBLE
+        loadingSpinner.progress = 0
         loadingText.text = getString(R.string.server_starting)
 
         ServerState.port = serverPort
@@ -328,6 +329,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             ServerState.jvmStarted = true
+            updateProgress(92, R.string.starting_server)
 
             Log.i(TAG, "Starting JVM...")
             var ret = -1
@@ -380,6 +382,7 @@ class MainActivity : AppCompatActivity() {
         val jreDir = File(appDir, "jre")
         val jreAbi = detectJreAbi()
 
+        updateProgress(5, R.string.extracting_jre)
         val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
         ZipFile(apkPath).use { zip ->
             val prefixJre = "assets/jre/$jreAbi/"
@@ -398,8 +401,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        Log.i(TAG, "Extracting step.tar...")
-        TarExtractor.extractFromApk(apkPath, "assets/step.tar", appDir)
+        updateProgress(45, R.string.extracting_step)
+        Log.i(TAG, "Extracting step.targz...")
+        TarExtractor.extractFromApk(apkPath, "assets/step.targz", appDir)
+
+        updateProgress(82, R.string.setting_up_modules)
         linkJswordData(appDir, File(appDir, "step"))
 
         Log.i(TAG, "Extraction complete (ABI: $jreAbi)")
@@ -462,6 +468,14 @@ class MainActivity : AppCompatActivity() {
         } else {
             @Suppress("DEPRECATION")
             packageManager.getPackageInfo(packageName, 0).longVersionCode
+        }
+    }
+
+    private fun updateProgress(percent: Int, textResId: Int) {
+        if (isFinishing || isDestroyed) return
+        runOnUiThread {
+            loadingSpinner.setProgress(percent, true)
+            loadingText.text = getString(textResId)
         }
     }
 

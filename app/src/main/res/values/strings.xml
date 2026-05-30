@@ -3,6 +3,10 @@
     <string name="app_name">STEP Bible</string>
     <string name="server_starting">Starting STEP Bible server...</string>
     <string name="server_failed">Failed to start STEP Bible</string>
+    <string name="extracting_jre">Extracting runtime files...</string>
+    <string name="extracting_step">Extracting Bible texts...</string>
+    <string name="setting_up_modules">Setting up modules...</string>
+    <string name="starting_server">Starting server...</string>
     <string name="tab_close">Close tab</string>
     <string name="retry">Retry</string>
     <string name="back">Back</string>

@@ -43,7 +43,7 @@ info()  { echo "  -> $*"; }
 die()   { echo "ERROR: $*" >&2; exit 1; }
 
 clean() {
-    rm -rf "$CACHE_DIR" "$ASSETS_DIR/jre" "$ASSETS_DIR/step" "$ASSETS_DIR/step.tar.gz"
+    rm -rf "$CACHE_DIR" "$ASSETS_DIR/jre" "$ASSETS_DIR/step" "$ASSETS_DIR/step.tar" "$ASSETS_DIR/step.tar.gz" "$ASSETS_DIR/step.targz"
     rm -f "$SCRIPT_DIR/.extracted" "$SCRIPT_DIR/.build-vars"
 }
 
@@ -296,11 +296,12 @@ phase_extract() {
     done
 
     # --- Archive STEP data into single tar for fast first-launch extraction ---
-    info "Archiving STEP data into step.tar..."
+    info "Archiving STEP data into step.targz..."
     cd "$ASSETS_DIR"
-    if tar --format=gnu -cf "step.tar" step/ 2>/dev/null; then
+    if tar --format=gnu -czf "step.targz" step/ 2>/dev/null; then
         rm -rf step/
-        info "step.tar: $(du -h step.tar | cut -f1)"
+        rm -f step.tar
+        info "step.targz: $(du -h step.targz | cut -f1)"
     else
         info "Warning: failed to create tar, keeping individual files"
     fi

@@ -111,7 +111,7 @@ SDK="build-cache/android-sdk"
 
 On first launch (or after version update), the app extracts:
 1. **JRE** from `assets/jre/$abi/` → `files/jre/`
-2. **STEP data** from `assets/step.tar` → `files/step/`
+2. **STEP data** from `assets/step.targz` → `files/step/`
 
 Marker files:
 - `files/.extraction-complete` — signals extraction is done
