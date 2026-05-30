@@ -234,9 +234,15 @@ phase_extract() {
     fi
     local web_xml="$ASSETS_DIR/step/step-web/WEB-INF/web.xml"
     if [[ -f "$web_xml" ]]; then
-        sed -i '/<filter-name>Remote Address Filter<\/filter-name>/,/<\/filter-mapping>/d' "$web_xml"
-        sed -i '/<!-- The following are used for the stand-alone version/,/the "-Pstandalone-install"/d' "$web_xml"
-        info "Removed Remote Address Filter from web.xml"
+                python3 -c "
+import re, sys
+with open(sys.argv[1]) as f: t = f.read()
+t = re.sub(r'<filter>\s*<filter-name>Remote Address Filter.*?</filter>\s*', '', t, flags=re.DOTALL)
+t = re.sub(r'<filter-mapping>\s*<filter-name>Remote Address Filter.*?</filter-mapping>\s*', '', t, flags=re.DOTALL)
+with open(sys.argv[1], 'w') as f: f.write(t)
+" "$web_xml"
+                sed -i '/<!-- .*stand-alone version of STEP/,/standalone-install/d' "$web_xml"
+                info "Removed Remote Address Filter from web.xml"
     fi
 
     # --- Compile StepServerLauncher bootstrap JAR + missing class stubs ---

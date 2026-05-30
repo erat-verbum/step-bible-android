@@ -10,9 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -30,7 +30,7 @@ jobs:
           echo "STEP_DEB_URL=https://dev.stepbible.org/downloads/stepbible_${DEB_US}.deb" >> $GITHUB_ENV
 
       - name: Cache build assets
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             build-cache
@@ -56,7 +56,7 @@ jobs:
         run: bash build.sh build release
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: STEP Bible ${{ steps.tag.outputs.deb_version }} (Release ${{ steps.tag.outputs.android_patch }})

@@ -48,8 +48,7 @@ android {
     buildTypes {
         release {
             signingConfig = if (System.getenv("KEYSTORE_PATH") != null) signingConfigs["release"] else signingConfigs["debugRelease"]
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            isMinifyEnabled = false
         }
     }
 
