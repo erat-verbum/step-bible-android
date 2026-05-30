@@ -82,7 +82,8 @@ class MainActivity : AppCompatActivity() {
     private data class TabInfo(
         val webView: WebView,
         val tabView: View,
-        var title: String
+        var title: String,
+        val fromShare: Boolean = false
     ) {
         var scrollListener: View.OnLayoutChangeListener? = null
     }
@@ -271,7 +272,7 @@ class MainActivity : AppCompatActivity() {
         tabBar.visibility = View.VISIBLE
         when {
             pendingShareUrl != null -> {
-                createTab(rebuildUrl(pendingShareUrl!!))
+                createTab(rebuildUrl(pendingShareUrl!!), fromShare = true)
                 pendingShareUrl = null
                 pendingRestoreData = null
             }
@@ -519,11 +520,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun createTab(url: String): WebView {
+    private fun createTab(url: String, fromShare: Boolean = false): WebView {
         val wv = createConfiguredWebView()
         wv.webChromeClient = chromeClient
 
-        addTabView(wv)
+        addTabView(wv, fromShare)
         wv.loadUrl(url)
         return wv
     }
@@ -802,13 +803,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun addTabView(wv: WebView) {
+    private fun addTabView(wv: WebView, fromShare: Boolean = false) {
         val tabView = createTabView("Loading...")
 
         container.addView(wv)
         wv.visibility = View.GONE
 
-        tabs.add(TabInfo(wv, tabView, "Loading..."))
+        tabs.add(TabInfo(wv, tabView, "Loading...", fromShare))
         showTab(tabs.size - 1)
     }
 
@@ -908,6 +909,9 @@ class MainActivity : AppCompatActivity() {
                 wv.goBack()
                 return
             }
+            if (tabs[currentIndex].fromShare) {
+                closeTab(currentIndex)
+            }
         }
         super.onBackPressed()
     }
@@ -1003,7 +1007,7 @@ class MainActivity : AppCompatActivity() {
         val url = "http://127.0.0.1:$port/?q=$q&options=$options&display=INTERLEAVED"
         Log.d(TAG, "Share URL: $url")
         if (toolbar.visibility == View.VISIBLE) {
-            createTab(url)
+            createTab(url, fromShare = true)
         } else {
             pendingShareUrl = url
         }
